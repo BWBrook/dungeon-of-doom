@@ -24,3 +24,11 @@ Original prompt: PLEASE IMPLEMENT THIS PLAN: M4B Plan: Character Creator
 - Wired the Play mode command surface, spell chooser, outcome panel, save/resume status, renderer effect inputs, and browser playtest hooks; `pnpm typecheck` is green after integration.
 - Expanded browser coverage for command buttons, `C` conjure, exit-gate feedback, outcome panels, save/resume status, and `render_game_to_text`; Vitest and Playwright are green.
 - Manual smoke used the shared web-game helper plus desktop/narrow Play mode screenshots; layout remains playable and command feedback is visible.
+
+## M6 Progress
+
+- Starting Visual and Audio Identity from clean `main` at `49da96b Polish run adventure loop`.
+- Locked direction is Lamp-lit Terminal with generated cue polish plus sound/motion toggles; no mechanics, save, codec, editor, or creator behavior changes intended.
+- Added shared visual catalog expansion, pure visual-effect timing, sensory preference storage, richer generated audio cue profiles, and browser text hook extensions.
+- Acceptance is green: `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:browser`.
+- Manual/browser smoke used the shared web-game helper plus desktop/narrow screenshots for Play and Editor; tile readability, active monster clarity, sensory toggles, and narrow layout all checked visually.

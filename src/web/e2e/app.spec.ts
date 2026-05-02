@@ -130,6 +130,8 @@ test('uses the polished command surface and reports playable text state', async 
     hero: { position: { x: number; y: number }; facing: string };
     enabledCommands: string[];
     latestMessage: string;
+    sensory: { audioEnabled: boolean; motionEnabled: boolean };
+    visualEffect: { kind: string; elapsedMs: number; intensity: number };
   };
 
   expect(parsed.mode).toBe('play');
@@ -138,9 +140,45 @@ test('uses the polished command surface and reports playable text state', async 
   expect(parsed.hero.facing).toBe('N');
   expect(parsed.enabledCommands).toContain('save');
   expect(parsed.latestMessage.length).toBeGreaterThan(0);
+  expect(parsed.sensory.audioEnabled).toBe(true);
+  expect(parsed.visualEffect.kind).toBe('save');
 
   await page.getByRole('button', { name: 'Resume Saved' }).click();
   await expect(page.locator('[data-role="save-status"]')).toContainText('Resumed saved turn');
+});
+
+test('persists sensory toggles and reports them for browser playtests', async ({ page }) => {
+  await resetPage(page);
+
+  const initial = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    sensory: { audioEnabled: boolean; motionEnabled: boolean };
+  };
+
+  await page.locator('[data-role="sound-toggle"]').click();
+  await page.locator('[data-role="motion-toggle"]').click();
+
+  const toggled = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    sensory: { audioEnabled: boolean; motionEnabled: boolean };
+  };
+
+  expect(toggled.sensory.audioEnabled).toBe(!initial.sensory.audioEnabled);
+  expect(toggled.sensory.motionEnabled).toBe(!initial.sensory.motionEnabled);
+
+  await page.reload();
+
+  const afterReload = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    sensory: { audioEnabled: boolean; motionEnabled: boolean };
+  };
+
+  expect(afterReload.sensory).toEqual(toggled.sensory);
+  await expect(page.locator('[data-role="sound-toggle"]')).toHaveAttribute(
+    'aria-pressed',
+    String(toggled.sensory.audioEnabled)
+  );
+  await expect(page.locator('[data-role="motion-toggle"]')).toHaveAttribute(
+    'aria-pressed',
+    String(toggled.sensory.motionEnabled)
+  );
 });
 
 test('imports legacy hero and level payloads, starts a run, and exports them again', async ({
@@ -424,4 +462,20 @@ test('stacks creator restoratives and preserves mode switching', async ({ page }
   await page.getByRole('button', { name: 'Creator' }).click();
   await expect(page.locator('[data-role="creator-mode"]')).toBeVisible();
   await expect(salve).toContainText('Owned 2');
+});
+
+test('keeps the upgraded shell usable on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 860 });
+  await resetPage(page);
+
+  await page.getByRole('button', { name: 'Start Run' }).click();
+  await expect(page.locator('[data-role="canvas"]')).toBeVisible();
+  await expect(page.locator('[data-command="moveForward"]')).toBeVisible();
+  await expect(page.locator('[data-role="sound-toggle"]')).toBeVisible();
+  await expect(page.locator('[data-role="motion-toggle"]')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Editor' }).click();
+  await expect(page.locator('[data-role="editor-canvas"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Creator' }).click();
+  await expect(page.getByRole('button', { name: 'Roll Hero' })).toBeVisible();
 });

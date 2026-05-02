@@ -50,6 +50,10 @@ import { EditorRenderer } from './editorRenderer';
 import { DungeonRenderer } from './renderer';
 import { createRunPresentation } from './runPresentation';
 import type { CommandId, RunPresentation } from './runPresentation';
+import { loadSensoryPreferences, saveSensoryPreferences } from './sensoryPreferences';
+import type { SensoryPreferences } from './sensoryPreferences';
+import { effectIntensity } from './visualEffects';
+import type { VisualEffectKind } from './visualCatalog';
 
 const IMPORTED_HERO_VALUE = '__imported_legacy_hero__';
 const CREATED_HERO_VALUE = '__created_creator_hero__';
@@ -71,7 +75,6 @@ const LEVEL_OPTIONS = [
 
 type AppMode = 'play' | 'editor' | 'creator';
 type StatusState = 'idle' | 'success' | 'error';
-type EffectKind = 'idle' | 'bump' | 'damage' | 'pickup' | 'spell' | 'trap' | 'save' | 'win' | 'escape' | 'dead';
 
 const PLAY_COMMANDS: Array<{ id: CommandId; action: Action | null }> = [
   { id: 'turnLeft', action: { type: 'turnLeft' } },
@@ -97,17 +100,23 @@ export function mountApp(root: HTMLDivElement) {
   root.innerHTML = `
     <main class="shell">
       <section class="hero-copy">
-        <p class="eyebrow">Browser rebuild checkpoint</p>
+        <p class="eyebrow">Lamp-lit terminal edition</p>
         <h1>Dungeon of Doom</h1>
         <p class="lede">
-          A deterministic first slice: pure engine underneath, symbolic retro shell on top.
+          Beneath ruined Crekkan, the engine keeps the rules and the terminal keeps the torch.
         </p>
       </section>
-      <nav class="mode-switch" aria-label="Application mode">
-        <button data-role="mode-play-button" type="button">Play</button>
-        <button data-role="mode-editor-button" type="button">Editor</button>
-        <button data-role="mode-creator-button" type="button">Creator</button>
-      </nav>
+      <section class="top-chrome">
+        <nav class="mode-switch" aria-label="Application mode">
+          <button data-role="mode-play-button" type="button">Play</button>
+          <button data-role="mode-editor-button" type="button">Editor</button>
+          <button data-role="mode-creator-button" type="button">Creator</button>
+        </nav>
+        <div class="sensory-controls" aria-label="Sensory controls">
+          <button data-role="sound-toggle" type="button" aria-pressed="true">Sound On</button>
+          <button data-role="motion-toggle" type="button" aria-pressed="true">Motion On</button>
+        </div>
+      </section>
       <section data-role="play-mode">
         <section class="toolbar">
           <label>
@@ -291,6 +300,8 @@ export function mountApp(root: HTMLDivElement) {
   const modePlayButton = requireElement(root, '[data-role="mode-play-button"]', HTMLButtonElement);
   const modeEditorButton = requireElement(root, '[data-role="mode-editor-button"]', HTMLButtonElement);
   const modeCreatorButton = requireElement(root, '[data-role="mode-creator-button"]', HTMLButtonElement);
+  const soundToggle = requireElement(root, '[data-role="sound-toggle"]', HTMLButtonElement);
+  const motionToggle = requireElement(root, '[data-role="motion-toggle"]', HTMLButtonElement);
   const playModePanel = requireElement(root, '[data-role="play-mode"]', HTMLElement);
   const editorModePanel = requireElement(root, '[data-role="editor-mode"]', HTMLElement);
   const creatorModePanel = requireElement(root, '[data-role="creator-mode"]', HTMLElement);
@@ -427,12 +438,15 @@ export function mountApp(root: HTMLDivElement) {
   const renderer = new DungeonRenderer(canvas);
   const editorRenderer = new EditorRenderer(editorCanvas);
   const audio = new AudioEngine();
+  let sensoryPreferences: SensoryPreferences = loadSensoryPreferences();
   let mode: AppMode = 'play';
   let game: Game | null = null;
   let lastSnapshot: Snapshot | null = null;
   let lastPresentation: RunPresentation = createRunPresentation(null, null);
   let lastChangedCells: Array<{ x: number; y: number }> = [];
-  let lastEffectKind: EffectKind = 'idle';
+  let lastEffectKind: VisualEffectKind = 'idle';
+  let lastEffectStartedAtMs = 0;
+  let uiClockMs = 0;
   let saveStatusMessage = 'No run saved this session.';
   let importedHero: HeroState | null = null;
   let createdHero: HeroState | null = null;
@@ -445,8 +459,11 @@ export function mountApp(root: HTMLDivElement) {
   let creatorMessageRows: string[] = [];
   let appMessages: string[] = [];
 
+  audio.setEnabled(sensoryPreferences.audioEnabled);
+
   function renderApp() {
     renderMode();
+    renderSensoryControls();
     renderCurrentGame();
     renderEditor();
     renderCreator();
@@ -476,7 +493,9 @@ export function mountApp(root: HTMLDivElement) {
 
       renderer.draw(previewGame.snapshot(), {
         changedCells: [],
-        effect: 'idle'
+        effect: 'idle',
+        elapsedMs: 0,
+        motionEnabled: sensoryPreferences.motionEnabled
       });
       saveButton.disabled = true;
       resumeButton.disabled = loadRun() === null;
@@ -492,7 +511,9 @@ export function mountApp(root: HTMLDivElement) {
     lastPresentation = presentation;
     renderer.draw(snapshot, {
       changedCells: lastChangedCells,
-      effect: lastEffectKind
+      effect: lastEffectKind,
+      elapsedMs: currentEffectElapsedMs(),
+      motionEnabled: sensoryPreferences.motionEnabled
     });
     renderRunPresentation(presentation);
     saveButton.disabled = snapshot.runStatus !== 'playing';
@@ -535,6 +556,14 @@ export function mountApp(root: HTMLDivElement) {
     }
 
     renderSpellChooser();
+  }
+
+  function renderSensoryControls() {
+    soundToggle.setAttribute('aria-pressed', String(sensoryPreferences.audioEnabled));
+    motionToggle.setAttribute('aria-pressed', String(sensoryPreferences.motionEnabled));
+    soundToggle.textContent = `Sound ${sensoryPreferences.audioEnabled ? 'On' : 'Off'}`;
+    motionToggle.textContent = `Motion ${sensoryPreferences.motionEnabled ? 'On' : 'Still'}`;
+    root.dataset.motion = sensoryPreferences.motionEnabled ? 'on' : 'off';
   }
 
   function renderOutcome(presentation: RunPresentation, snapshot: NonNullable<typeof lastSnapshot>) {
@@ -777,6 +806,7 @@ export function mountApp(root: HTMLDivElement) {
     game = buildNewGame();
     lastChangedCells = [];
     lastEffectKind = 'idle';
+    lastEffectStartedAtMs = uiClockMs;
     saveStatusMessage = 'Run started. No save yet.';
     spellChooser.hidden = true;
     renderApp();
@@ -793,6 +823,7 @@ export function mountApp(root: HTMLDivElement) {
     audio.playAll(['save']);
     saveStatusMessage = `Saved turn ${run.turnCount}.`;
     lastEffectKind = 'save';
+    lastEffectStartedAtMs = uiClockMs;
     renderApp();
   }
 
@@ -804,6 +835,7 @@ export function mountApp(root: HTMLDivElement) {
     game = Game.fromSerializedRun(serialized);
     lastChangedCells = [];
     lastEffectKind = 'idle';
+    lastEffectStartedAtMs = uiClockMs;
     saveStatusMessage = `Resumed saved turn ${serialized.turnCount}.`;
     spellChooser.hidden = true;
     renderApp();
@@ -818,9 +850,33 @@ export function mountApp(root: HTMLDivElement) {
 
     lastChangedCells = result.cellsChanged;
     lastEffectKind = effectKindFromResult(action, result, game.snapshot().runStatus);
+    lastEffectStartedAtMs = uiClockMs;
     spellChooser.hidden = true;
     audio.playAll(result.sounds);
     renderApp();
+  }
+
+  function toggleAudioPreference() {
+    sensoryPreferences = {
+      ...sensoryPreferences,
+      audioEnabled: !sensoryPreferences.audioEnabled
+    };
+    audio.setEnabled(sensoryPreferences.audioEnabled);
+    saveSensoryPreferences(sensoryPreferences);
+    renderApp();
+  }
+
+  function toggleMotionPreference() {
+    sensoryPreferences = {
+      ...sensoryPreferences,
+      motionEnabled: !sensoryPreferences.motionEnabled
+    };
+    saveSensoryPreferences(sensoryPreferences);
+    renderApp();
+  }
+
+  function currentEffectElapsedMs() {
+    return Math.max(0, uiClockMs - lastEffectStartedAtMs);
   }
 
   function performCommand(commandId: CommandId) {
@@ -1165,6 +1221,12 @@ export function mountApp(root: HTMLDivElement) {
   modeCreatorButton.addEventListener('click', () => {
     setMode('creator');
   });
+  soundToggle.addEventListener('click', () => {
+    toggleAudioPreference();
+  });
+  motionToggle.addEventListener('click', () => {
+    toggleMotionPreference();
+  });
   startButton.addEventListener('click', () => {
     startRun();
   });
@@ -1361,8 +1423,17 @@ export function mountApp(root: HTMLDivElement) {
     performAction(mappedAction);
   });
 
-  window.render_game_to_text = () => renderGameToText(mode, lastSnapshot, lastPresentation);
-  window.advanceTime = () => {
+  window.render_game_to_text = () =>
+    renderGameToText(
+      mode,
+      lastSnapshot,
+      lastPresentation,
+      sensoryPreferences,
+      lastEffectKind,
+      currentEffectElapsedMs()
+    );
+  window.advanceTime = (ms = 0) => {
+    uiClockMs += Math.max(0, ms);
     renderApp();
   };
 
@@ -1417,7 +1488,7 @@ function mapKeyToAction(key: string): Action | null {
   }
 }
 
-function effectKindFromResult(action: Action, result: StepResult, runStatus: RunStatus): EffectKind {
+function effectKindFromResult(action: Action, result: StepResult, runStatus: RunStatus): VisualEffectKind {
   if (runStatus === 'won') {
     return 'win';
   }
@@ -1462,7 +1533,10 @@ function isSpellButtonAvailable(hero: HeroState, slot: SpellSlot): boolean {
 function renderGameToText(
   mode: AppMode,
   snapshot: Snapshot | null,
-  presentation: RunPresentation
+  presentation: RunPresentation,
+  sensoryPreferences: SensoryPreferences,
+  visualEffect: VisualEffectKind,
+  visualEffectElapsedMs: number
 ): string {
   return JSON.stringify({
     mode,
@@ -1492,6 +1566,15 @@ function renderGameToText(
     enabledCommands: presentation.commandStates
       .filter((command) => command.enabled)
       .map((command) => command.id),
+    sensory: {
+      audioEnabled: sensoryPreferences.audioEnabled,
+      motionEnabled: sensoryPreferences.motionEnabled
+    },
+    visualEffect: {
+      kind: visualEffect,
+      elapsedMs: visualEffectElapsedMs,
+      intensity: effectIntensity(visualEffect, visualEffectElapsedMs, sensoryPreferences.motionEnabled)
+    },
     coordinateSystem: '0-based grid, origin top-left, x right, y down'
   });
 }
