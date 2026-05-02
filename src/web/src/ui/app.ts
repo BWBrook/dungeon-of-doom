@@ -17,6 +17,7 @@ import type {
 } from '../creator/model';
 import {
   CLASS_LABELS,
+  SPELL_NAMES,
   deriveClassId
 } from '../engine/catalog';
 import {
@@ -30,7 +31,16 @@ import {
 import type { EditorDraft, EditorTool, EditorValidation } from '../editor/model';
 import { heroFixtures, levelFixtures } from '../engine/fixtures';
 import { Game, createGameInit, resetHeroRuntime } from '../engine/game';
-import type { Action, HeroState, LevelDefinition, SerializedRun } from '../engine/types';
+import type {
+  Action,
+  HeroState,
+  LevelDefinition,
+  RunStatus,
+  SerializedRun,
+  Snapshot,
+  SpellSlot,
+  StepResult
+} from '../engine/types';
 import { formatHeroString, formatLevelString, parseHeroString, parseLevelString } from '../persist/legacy';
 import { formatHeroDocument } from '../persist/heroDocument';
 import { formatLevelDocument } from '../persist/levelDocument';
@@ -38,6 +48,8 @@ import { loadRun, saveRun } from '../persist/save';
 import { AudioEngine } from './audio';
 import { EditorRenderer } from './editorRenderer';
 import { DungeonRenderer } from './renderer';
+import { createRunPresentation } from './runPresentation';
+import type { CommandId, RunPresentation } from './runPresentation';
 
 const IMPORTED_HERO_VALUE = '__imported_legacy_hero__';
 const CREATED_HERO_VALUE = '__created_creator_hero__';
@@ -59,6 +71,27 @@ const LEVEL_OPTIONS = [
 
 type AppMode = 'play' | 'editor' | 'creator';
 type StatusState = 'idle' | 'success' | 'error';
+type EffectKind = 'idle' | 'bump' | 'damage' | 'pickup' | 'spell' | 'trap' | 'save' | 'win' | 'escape' | 'dead';
+
+const PLAY_COMMANDS: Array<{ id: CommandId; action: Action | null }> = [
+  { id: 'turnLeft', action: { type: 'turnLeft' } },
+  { id: 'turnRight', action: { type: 'turnRight' } },
+  { id: 'moveForward', action: { type: 'moveForward' } },
+  { id: 'attack', action: { type: 'attack' } },
+  { id: 'get', action: { type: 'get' } },
+  { id: 'restore', action: { type: 'useRestorative' } },
+  { id: 'reveal', action: { type: 'reveal' } },
+  { id: 'conjure', action: null },
+  { id: 'wait', action: { type: 'wait' } },
+  { id: 'save', action: null }
+];
+
+declare global {
+  interface Window {
+    render_game_to_text?: () => string;
+    advanceTime?: (ms: number) => void;
+  }
+}
 
 export function mountApp(root: HTMLDivElement) {
   root.innerHTML = `
@@ -98,19 +131,45 @@ export function mountApp(root: HTMLDivElement) {
             <canvas data-role="canvas" aria-label="Dungeon grid"></canvas>
           </div>
           <aside class="sidebar">
+            <section class="panel run-brief">
+              <p class="run-kicker" data-role="run-subline">Select a hero and level.</p>
+              <h2 data-role="run-headline">Choose thy quest</h2>
+              <p class="latest-event" data-role="latest-event" aria-live="polite">The dungeon awaits.</p>
+            </section>
             <section class="panel">
               <h2>Status</h2>
               <dl class="hud" data-role="hud"></dl>
             </section>
+            <section class="panel command-panel">
+              <h2>Commands</h2>
+              <div class="command-grid" data-role="command-grid"></div>
+              <div class="spell-chooser" data-role="spell-chooser" hidden>
+                <p>Choose a spell from thy lore.</p>
+                <div data-role="spell-buttons"></div>
+              </div>
+              <p class="save-status" data-role="save-status" aria-live="polite">No run saved this session.</p>
+            </section>
             <section class="panel">
               <h2>Controls</h2>
-              <p>B turn left, N turn right, M move, A attack, G get, P restore, R reveal, 1-6 cast, . wait, S save.</p>
+              <p>B/N turn, M move, A attack, G get, P restore, R reveal, C conjure, 1-6 quick-cast, . wait, S save.</p>
             </section>
             <section class="panel">
               <h2>Messages</h2>
               <ol class="messages" data-role="messages" aria-live="polite"></ol>
             </section>
           </aside>
+        </section>
+        <section class="panel outcome-panel" data-role="outcome-panel" hidden>
+          <div>
+            <p class="run-kicker" data-role="outcome-subline">Run complete</p>
+            <h2 data-role="outcome-title">Outcome</h2>
+            <p data-role="outcome-body"></p>
+          </div>
+          <div class="outcome-actions">
+            <button data-role="outcome-start-button" type="button">Start Run</button>
+            <button data-role="outcome-export-hero-button" type="button">Export Hero</button>
+            <button data-role="outcome-export-level-button" type="button">Export Level</button>
+          </div>
         </section>
         <section class="panel legacy-panel" aria-labelledby="legacy-heading">
           <div class="legacy-header">
@@ -242,8 +301,22 @@ export function mountApp(root: HTMLDivElement) {
   const saveButton = requireElement(root, '[data-role="save-button"]', HTMLButtonElement);
   const resumeButton = requireElement(root, '[data-role="resume-button"]', HTMLButtonElement);
   const canvas = requireElement(root, '[data-role="canvas"]', HTMLCanvasElement);
+  const runSubline = requireElement(root, '[data-role="run-subline"]', HTMLParagraphElement);
+  const runHeadline = requireElement(root, '[data-role="run-headline"]', HTMLHeadingElement);
+  const latestEvent = requireElement(root, '[data-role="latest-event"]', HTMLParagraphElement);
   const hud = requireElement(root, '[data-role="hud"]', HTMLDListElement);
+  const commandGrid = requireElement(root, '[data-role="command-grid"]', HTMLDivElement);
+  const spellChooser = requireElement(root, '[data-role="spell-chooser"]', HTMLDivElement);
+  const spellButtons = requireElement(root, '[data-role="spell-buttons"]', HTMLDivElement);
+  const saveStatus = requireElement(root, '[data-role="save-status"]', HTMLParagraphElement);
   const messages = requireElement(root, '[data-role="messages"]', HTMLOListElement);
+  const outcomePanel = requireElement(root, '[data-role="outcome-panel"]', HTMLElement);
+  const outcomeSubline = requireElement(root, '[data-role="outcome-subline"]', HTMLParagraphElement);
+  const outcomeTitle = requireElement(root, '[data-role="outcome-title"]', HTMLHeadingElement);
+  const outcomeBody = requireElement(root, '[data-role="outcome-body"]', HTMLParagraphElement);
+  const outcomeStartButton = requireElement(root, '[data-role="outcome-start-button"]', HTMLButtonElement);
+  const outcomeExportHeroButton = requireElement(root, '[data-role="outcome-export-hero-button"]', HTMLButtonElement);
+  const outcomeExportLevelButton = requireElement(root, '[data-role="outcome-export-level-button"]', HTMLButtonElement);
   const heroPayload = requireElement(root, '[data-role="hero-payload"]', HTMLTextAreaElement);
   const levelPayload = requireElement(root, '[data-role="level-payload"]', HTMLTextAreaElement);
   const legacyStatus = requireElement(root, '[data-role="legacy-status"]', HTMLParagraphElement);
@@ -331,6 +404,23 @@ export function mountApp(root: HTMLDivElement) {
     creatorStorePages.append(button);
   }
 
+  for (const command of PLAY_COMMANDS) {
+    const button = document.createElement('button');
+
+    button.type = 'button';
+    button.dataset.command = command.id;
+    commandGrid.append(button);
+  }
+
+  for (let slot = 1; slot <= 6; slot += 1) {
+    const button = document.createElement('button');
+
+    button.type = 'button';
+    button.dataset.spellSlot = String(slot);
+    button.textContent = String(slot);
+    spellButtons.append(button);
+  }
+
   heroSelect.value = HERO_OPTIONS[0].value;
   levelSelect.value = LEVEL_OPTIONS[0].value;
 
@@ -339,6 +429,11 @@ export function mountApp(root: HTMLDivElement) {
   const audio = new AudioEngine();
   let mode: AppMode = 'play';
   let game: Game | null = null;
+  let lastSnapshot: Snapshot | null = null;
+  let lastPresentation: RunPresentation = createRunPresentation(null, null);
+  let lastChangedCells: Array<{ x: number; y: number }> = [];
+  let lastEffectKind: EffectKind = 'idle';
+  let saveStatusMessage = 'No run saved this session.';
   let importedHero: HeroState | null = null;
   let createdHero: HeroState | null = null;
   let importedLevel: LevelDefinition | null = null;
@@ -374,36 +469,35 @@ export function mountApp(root: HTMLDivElement) {
 
   function renderCurrentGame() {
     if (!game) {
-      hud.innerHTML = '<div class="empty-state">Choose a hero and level, then begin.</div>';
-      renderMessages(['The dungeon awaits.']);
+      lastSnapshot = null;
+      lastPresentation = createRunPresentation(null, null, ['The dungeon awaits.', ...appMessages]);
+      renderRunPresentation(lastPresentation);
       const previewGame = buildNewGame();
 
-      renderer.draw(previewGame.snapshot());
+      renderer.draw(previewGame.snapshot(), {
+        changedCells: [],
+        effect: 'idle'
+      });
       saveButton.disabled = true;
       resumeButton.disabled = loadRun() === null;
+      outcomePanel.hidden = true;
       return;
     }
 
     const snapshot = game.snapshot();
+    const level = game.serializeRun().level;
+    const presentation = createRunPresentation(snapshot, level, appMessages);
 
-    renderer.draw(snapshot);
-    hud.innerHTML = `
-      ${renderStat('STR', Math.floor(snapshot.hero.stats.strength))}
-      ${renderStat('VIT', Math.floor(snapshot.hero.stats.vitality))}
-      ${renderStat('AUR', Math.floor(snapshot.hero.stats.aura))}
-      ${renderStat('EXP', Math.floor(snapshot.hero.stats.experience))}
-      ${renderStat('FACE', snapshot.hero.facing)}
-      ${renderStat('RUN', snapshot.runStatus.toUpperCase())}
-      ${renderStat('LIGHT', snapshot.hero.lightUses)}
-      ${renderStat('SPELL 1', snapshot.hero.spellCharges[1])}
-      ${renderStat('SPELL 4', snapshot.hero.spellCharges[4])}
-      ${renderStat('TREASURE', snapshot.hero.treasure)}
-      ${renderStat('ACTIVE', snapshot.activeMonster ? `${snapshot.activeMonster.hp.toFixed(1)} HP` : 'NONE')}
-      ${renderStat('SCORE', snapshot.score ?? '--')}
-    `;
-    renderMessages(snapshot.messages);
+    lastSnapshot = snapshot;
+    lastPresentation = presentation;
+    renderer.draw(snapshot, {
+      changedCells: lastChangedCells,
+      effect: lastEffectKind
+    });
+    renderRunPresentation(presentation);
     saveButton.disabled = snapshot.runStatus !== 'playing';
     resumeButton.disabled = loadRun() === null;
+    renderOutcome(presentation, snapshot);
   }
 
   function renderEditor() {
@@ -411,6 +505,72 @@ export function mountApp(root: HTMLDivElement) {
 
     for (const button of editorToolPalette.querySelectorAll<HTMLButtonElement>('button[data-tool]')) {
       button.setAttribute('aria-pressed', String(button.dataset.tool === editorDraft.selectedTool));
+    }
+  }
+
+  function renderRunPresentation(presentation: RunPresentation) {
+    runHeadline.textContent = presentation.headline;
+    runSubline.textContent = presentation.subline;
+    latestEvent.textContent = presentation.latestMessage;
+    hud.innerHTML =
+      presentation.resources.length > 0
+        ? presentation.resources
+            .map((resource) => renderStat(resource.label, resource.value))
+            .join('')
+        : '<div class="empty-state">Choose a hero and level, then begin.</div>';
+    renderMessages(presentation.logRows);
+    saveStatus.textContent = saveStatusMessage;
+
+    for (const button of commandGrid.querySelectorAll<HTMLButtonElement>('button[data-command]')) {
+      const state = presentation.commandStates.find((command) => command.id === button.dataset.command);
+
+      if (!state) {
+        continue;
+      }
+
+      button.innerHTML = `<span>${escapeHtml(state.label)}</span><kbd>${escapeHtml(state.hotkey)}</kbd>`;
+      button.disabled = !state.enabled;
+      button.title = state.hint;
+      button.dataset.enabled = String(state.enabled);
+    }
+
+    renderSpellChooser();
+  }
+
+  function renderOutcome(presentation: RunPresentation, snapshot: NonNullable<typeof lastSnapshot>) {
+    if (!presentation.outcome) {
+      outcomePanel.hidden = true;
+      return;
+    }
+
+    outcomePanel.hidden = false;
+    outcomeSubline.textContent = `Final turn ${snapshot.turnCount}`;
+
+    if (presentation.outcome === 'won') {
+      outcomeTitle.textContent = 'Quest Complete';
+      outcomeBody.textContent = `Score ${snapshot.score ?? '--'} with ${snapshot.hero.treasure} treasure and ${snapshot.hero.gold} gold.`;
+      return;
+    }
+
+    if (presentation.outcome === 'escaped') {
+      outcomeTitle.textContent = 'Escaped The Level';
+      outcomeBody.textContent = `Experience ${snapshot.hero.stats.experience.toFixed(2)}. Prepare the next dungeon when thy hero is ready.`;
+      return;
+    }
+
+    outcomeTitle.textContent = 'Thou Hast Fallen';
+    outcomeBody.textContent = `Final STR ${Math.floor(snapshot.hero.stats.strength)}, VIT ${Math.floor(snapshot.hero.stats.vitality)}. Last word: ${presentation.latestMessage}`;
+  }
+
+  function renderSpellChooser() {
+    const snapshot = lastSnapshot;
+
+    for (const button of spellButtons.querySelectorAll<HTMLButtonElement>('button[data-spell-slot]')) {
+      const slot = Number(button.dataset.spellSlot) as SpellSlot;
+      const enabled = snapshot?.runStatus === 'playing' && isSpellButtonAvailable(snapshot.hero, slot);
+
+      button.textContent = `${slot}. ${SPELL_NAMES[slot]}`;
+      button.disabled = !enabled;
     }
   }
 
@@ -615,6 +775,10 @@ export function mountApp(root: HTMLDivElement) {
 
   function startRun() {
     game = buildNewGame();
+    lastChangedCells = [];
+    lastEffectKind = 'idle';
+    saveStatusMessage = 'Run started. No save yet.';
+    spellChooser.hidden = true;
     renderApp();
   }
 
@@ -627,6 +791,8 @@ export function mountApp(root: HTMLDivElement) {
 
     saveRun(run);
     audio.playAll(['save']);
+    saveStatusMessage = `Saved turn ${run.turnCount}.`;
+    lastEffectKind = 'save';
     renderApp();
   }
 
@@ -636,6 +802,10 @@ export function mountApp(root: HTMLDivElement) {
     }
 
     game = Game.fromSerializedRun(serialized);
+    lastChangedCells = [];
+    lastEffectKind = 'idle';
+    saveStatusMessage = `Resumed saved turn ${serialized.turnCount}.`;
+    spellChooser.hidden = true;
     renderApp();
   }
 
@@ -646,8 +816,53 @@ export function mountApp(root: HTMLDivElement) {
 
     const result = game.step(action);
 
+    lastChangedCells = result.cellsChanged;
+    lastEffectKind = effectKindFromResult(action, result, game.snapshot().runStatus);
+    spellChooser.hidden = true;
     audio.playAll(result.sounds);
     renderApp();
+  }
+
+  function performCommand(commandId: CommandId) {
+    const commandState = lastPresentation.commandStates.find((command) => command.id === commandId);
+
+    if (!commandState?.enabled) {
+      return;
+    }
+
+    if (commandId === 'save') {
+      saveCurrentGame();
+      return;
+    }
+
+    if (commandId === 'conjure') {
+      toggleSpellChooser();
+      return;
+    }
+
+    const command = PLAY_COMMANDS.find((entry) => entry.id === commandId);
+
+    if (command?.action) {
+      performAction(command.action);
+    }
+  }
+
+  function toggleSpellChooser() {
+    const commandState = lastPresentation.commandStates.find((command) => command.id === 'conjure');
+
+    if (!commandState?.enabled) {
+      return;
+    }
+
+    spellChooser.hidden = !spellChooser.hidden;
+  }
+
+  function castSpellFromChooser(slot: SpellSlot) {
+    if (!lastSnapshot || !isSpellButtonAvailable(lastSnapshot.hero, slot)) {
+      return;
+    }
+
+    performAction({ type: 'castSpell', slot });
   }
 
   function setMode(nextMode: AppMode) {
@@ -959,6 +1174,33 @@ export function mountApp(root: HTMLDivElement) {
   resumeButton.addEventListener('click', () => {
     loadCurrentGame(loadRun());
   });
+  commandGrid.addEventListener('click', (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest('button[data-command]') : null;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.command) {
+      return;
+    }
+
+    performCommand(target.dataset.command as CommandId);
+  });
+  spellButtons.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.spellSlot) {
+      return;
+    }
+
+    castSpellFromChooser(Number(target.dataset.spellSlot) as SpellSlot);
+  });
+  outcomeStartButton.addEventListener('click', () => {
+    startRun();
+  });
+  outcomeExportHeroButton.addEventListener('click', () => {
+    exportHeroPayload();
+  });
+  outcomeExportLevelButton.addEventListener('click', () => {
+    exportLevelPayload();
+  });
   importHeroButton.addEventListener('click', () => {
     importHeroPayload();
   });
@@ -1098,7 +1340,14 @@ export function mountApp(root: HTMLDivElement) {
     const key = event.key.toLowerCase();
 
     if (key === 's') {
-      saveCurrentGame();
+      performCommand('save');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'c') {
+      performCommand('conjure');
+      event.preventDefault();
       return;
     }
 
@@ -1111,6 +1360,11 @@ export function mountApp(root: HTMLDivElement) {
     event.preventDefault();
     performAction(mappedAction);
   });
+
+  window.render_game_to_text = () => renderGameToText(mode, lastSnapshot, lastPresentation);
+  window.advanceTime = () => {
+    renderApp();
+  };
 
   setEditorStatus('Paint a level, then validate or launch it.', 'idle', validateEditorDraft(editorDraft));
   renderApp();
@@ -1161,6 +1415,85 @@ function mapKeyToAction(key: string): Action | null {
     default:
       return null;
   }
+}
+
+function effectKindFromResult(action: Action, result: StepResult, runStatus: RunStatus): EffectKind {
+  if (runStatus === 'won') {
+    return 'win';
+  }
+
+  if (runStatus === 'escaped') {
+    return 'escape';
+  }
+
+  if (runStatus === 'dead') {
+    return 'dead';
+  }
+
+  if (result.sounds.includes('trap')) {
+    return 'trap';
+  }
+
+  if (result.sounds.includes('monster-hit')) {
+    return 'damage';
+  }
+
+  if (result.sounds.includes('pickup')) {
+    return 'pickup';
+  }
+
+  if (result.sounds.includes('spell') || action.type === 'castSpell') {
+    return 'spell';
+  }
+
+  if (result.sounds.includes('bump')) {
+    return 'bump';
+  }
+
+  return 'idle';
+}
+
+function isSpellButtonAvailable(hero: HeroState, slot: SpellSlot): boolean {
+  const hasSource = slot <= 3 ? (hero.inventorySlots[17] ?? 0) > 0 : (hero.inventorySlots[18] ?? 0) > 0;
+
+  return hasSource && hero.spellCharges[slot] > 0 && hero.stats.aura > 0;
+}
+
+function renderGameToText(
+  mode: AppMode,
+  snapshot: Snapshot | null,
+  presentation: RunPresentation
+): string {
+  return JSON.stringify({
+    mode,
+    runStatus: snapshot?.runStatus ?? 'not-started',
+    hero: snapshot
+      ? {
+          name: snapshot.hero.name,
+          position: snapshot.hero.position,
+          facing: snapshot.hero.facing,
+          strength: Math.floor(snapshot.hero.stats.strength),
+          vitality: Math.floor(snapshot.hero.stats.vitality),
+          aura: Math.floor(snapshot.hero.stats.aura),
+          experience: Math.floor(snapshot.hero.stats.experience),
+          light: snapshot.hero.lightUses,
+          salves: snapshot.hero.inventorySlots[23] ?? 0,
+          potions: snapshot.hero.inventorySlots[24] ?? 0
+        }
+      : null,
+    activeMonster: snapshot?.activeMonster
+      ? {
+          id: snapshot.activeMonster.id,
+          position: snapshot.activeMonster.position,
+          hp: Math.ceil(snapshot.activeMonster.hp)
+        }
+      : null,
+    latestMessage: presentation.latestMessage,
+    enabledCommands: presentation.commandStates
+      .filter((command) => command.enabled)
+      .map((command) => command.id),
+    coordinateSystem: '0-based grid, origin top-left, x right, y down'
+  });
 }
 
 function formatStatLabel(stat: CreatorStatKey) {

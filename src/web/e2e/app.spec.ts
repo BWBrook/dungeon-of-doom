@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { clericStarter, createLegacyFriendlyLevelFixture } from '../src/engine/fixtures';
+import { tileKindToLegacyCode } from '../src/engine/catalog';
+import type { BaseTileKind, LevelCell, LevelDefinition } from '../src/engine/types';
 import {
   formatHeroString,
   formatLevelString,
@@ -47,6 +49,34 @@ async function clickEditorCell(page: Page, x: number, y: number) {
   });
 }
 
+function createCell(kind: BaseTileKind): LevelCell {
+  return {
+    kind,
+    legacyCode: tileKindToLegacyCode(kind)
+  };
+}
+
+function createExitGateLevel(): LevelDefinition {
+  const cells = Array.from({ length: 225 }, () => createCell('floor'));
+
+  cells[7 + 7 * 15] = createCell('entrance');
+  cells[7 + 6 * 15] = createCell('exit');
+
+  return {
+    id: 8,
+    width: 15,
+    height: 15,
+    cells,
+    startPosition: { x: 7, y: 7 },
+    authoredEntrancePosition: { x: 7, y: 7 },
+    monsterSpawns: []
+  };
+}
+
+async function clickCommand(page: Page, commandId: string) {
+  await page.locator(`[data-command="${commandId}"]`).click();
+}
+
 test('runs the core browser checkpoint loop and resumes a saved run', async ({ page }) => {
   await resetPage(page);
 
@@ -68,6 +98,49 @@ test('runs the core browser checkpoint loop and resumes a saved run', async ({ p
   await expect(page.locator('.hud-row').filter({ hasText: 'RUN' }).locator('dd')).toContainText(
     'PLAYING'
   );
+});
+
+test('uses the polished command surface and reports playable text state', async ({ page }) => {
+  await resetPage(page);
+
+  await page.locator('[data-role="hero-select"]').selectOption('warrior_starter');
+  await page.locator('[data-role="level-select"]').selectOption('mixed_demo_level');
+  await page.getByRole('button', { name: 'Start Run' }).click();
+
+  await expect(page.locator('[data-role="run-headline"]')).toContainText('Rogan');
+  await clickCommand(page, 'get');
+  await expect(page.locator('[data-role="latest-event"]')).toContainText(
+    'THOU FINDEST RESTORATIVES'
+  );
+
+  await clickCommand(page, 'reveal');
+  await expect(page.locator('[data-command="attack"]')).toBeEnabled();
+  await clickCommand(page, 'attack');
+  await clickCommand(page, 'turnRight');
+  await clickCommand(page, 'turnLeft');
+  await clickCommand(page, 'wait');
+  await clickCommand(page, 'restore');
+  await clickCommand(page, 'save');
+  await expect(page.locator('[data-role="save-status"]')).toContainText('Saved turn');
+
+  const textState = await page.evaluate(() => window.render_game_to_text?.() ?? '');
+  const parsed = JSON.parse(textState) as {
+    mode: string;
+    runStatus: string;
+    hero: { position: { x: number; y: number }; facing: string };
+    enabledCommands: string[];
+    latestMessage: string;
+  };
+
+  expect(parsed.mode).toBe('play');
+  expect(parsed.runStatus).toBe('playing');
+  expect(parsed.hero.position).toEqual({ x: 7, y: 7 });
+  expect(parsed.hero.facing).toBe('N');
+  expect(parsed.enabledCommands).toContain('save');
+  expect(parsed.latestMessage.length).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'Resume Saved' }).click();
+  await expect(page.locator('[data-role="save-status"]')).toContainText('Resumed saved turn');
 });
 
 test('imports legacy hero and level payloads, starts a run, and exports them again', async ({
@@ -108,6 +181,21 @@ test('imports legacy hero and level payloads, starts a run, and exports them aga
   expect(parseLevelString(exportedLevel).startPosition).toEqual({ x: 0, y: 0 });
 });
 
+test('opens conjure with C and casts from the spell chooser', async ({ page }) => {
+  await resetPage(page);
+
+  await page.locator('[data-role="hero-select"]').selectOption('cleric_starter');
+  await page.locator('[data-role="level-select"]').selectOption('mixed_demo_level');
+  await page.getByRole('button', { name: 'Start Run' }).click();
+  await page.keyboard.press('C');
+
+  await expect(page.locator('[data-role="spell-chooser"]')).toBeVisible();
+  await page.locator('[data-spell-slot="4"]').click();
+  await expect(page.locator('[data-role="latest-event"]')).toContainText(
+    'POWER SURGES WITHIN THEE'
+  );
+});
+
 test('shows legacy import errors without adding imported options', async ({ page }) => {
   await resetPage(page);
 
@@ -134,6 +222,21 @@ test('can win immediately on the idol fixture', async ({ page }) => {
   await expect(page.locator('.hud-row').filter({ hasText: 'RUN' }).locator('dd')).toContainText(
     'WON'
   );
+  await expect(page.locator('[data-role="outcome-panel"]')).toBeVisible();
+  await expect(page.locator('[data-role="outcome-title"]')).toContainText('Quest Complete');
+  await expect(page.locator('[data-role="outcome-body"]')).toContainText('Score');
+});
+
+test('shows exit gating feedback in the polished play shell', async ({ page }) => {
+  await resetPage(page);
+
+  await page.getByLabel('Level Payload').fill(formatLevelString(createExitGateLevel()));
+  await page.getByRole('button', { name: 'Import Level' }).click();
+  await page.getByRole('button', { name: 'Start Run' }).click();
+  await clickCommand(page, 'moveForward');
+
+  await expect(page.locator('[data-role="latest-event"]')).toContainText('YOU NEED EXPERIENCE');
+  await expect(page.locator('[data-role="run-subline"]')).toContainText('exploring');
 });
 
 test('paints an editor level, validates it, and launches play from the authored level', async ({
