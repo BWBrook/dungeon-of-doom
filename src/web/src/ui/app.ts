@@ -1,4 +1,25 @@
 import {
+  ADJUSTABLE_CREATOR_STAT_KEYS,
+  CREATOR_STORE_PAGES,
+  adjustCreatorStat,
+  attemptCreatorPurchase,
+  createDefaultCreatorDraft,
+  heroFromCreatorDraft,
+  itemsForCreatorPage,
+  validateCreatorDraft
+} from '../creator/model';
+import type {
+  CreatorDraft,
+  CreatorPurchaseMode,
+  CreatorStatKey,
+  CreatorStorePage,
+  CreatorValidation
+} from '../creator/model';
+import {
+  CLASS_LABELS,
+  deriveClassId
+} from '../engine/catalog';
+import {
   EDITOR_TOOLS,
   createDefaultEditorDraft,
   editorDraftFromLevel,
@@ -11,6 +32,7 @@ import { heroFixtures, levelFixtures } from '../engine/fixtures';
 import { Game, createGameInit, resetHeroRuntime } from '../engine/game';
 import type { Action, HeroState, LevelDefinition, SerializedRun } from '../engine/types';
 import { formatHeroString, formatLevelString, parseHeroString, parseLevelString } from '../persist/legacy';
+import { formatHeroDocument } from '../persist/heroDocument';
 import { formatLevelDocument } from '../persist/levelDocument';
 import { loadRun, saveRun } from '../persist/save';
 import { AudioEngine } from './audio';
@@ -18,6 +40,7 @@ import { EditorRenderer } from './editorRenderer';
 import { DungeonRenderer } from './renderer';
 
 const IMPORTED_HERO_VALUE = '__imported_legacy_hero__';
+const CREATED_HERO_VALUE = '__created_creator_hero__';
 const IMPORTED_LEVEL_VALUE = '__imported_legacy_level__';
 const AUTHORED_LEVEL_VALUE = '__authored_editor_level__';
 
@@ -34,7 +57,7 @@ const LEVEL_OPTIONS = [
   { value: 'idol_finish_level', label: 'Idol Finish' }
 ] as const;
 
-type AppMode = 'play' | 'editor';
+type AppMode = 'play' | 'editor' | 'creator';
 type StatusState = 'idle' | 'success' | 'error';
 
 export function mountApp(root: HTMLDivElement) {
@@ -50,6 +73,7 @@ export function mountApp(root: HTMLDivElement) {
       <nav class="mode-switch" aria-label="Application mode">
         <button data-role="mode-play-button" type="button">Play</button>
         <button data-role="mode-editor-button" type="button">Editor</button>
+        <button data-role="mode-creator-button" type="button">Creator</button>
       </nav>
       <section data-role="play-mode">
         <section class="toolbar">
@@ -150,13 +174,67 @@ export function mountApp(root: HTMLDivElement) {
           <textarea data-role="editor-output" spellcheck="false" rows="7"></textarea>
         </section>
       </section>
+      <section data-role="creator-mode" hidden>
+        <section class="creator-workbench">
+          <section class="panel creator-panel">
+            <h2>Roll Hero</h2>
+            <div class="creator-form">
+              <label>
+                Creator Seed
+                <input data-role="creator-seed-input" type="number" min="1" step="1" value="1984" />
+              </label>
+              <label>
+                Hero Name
+                <input data-role="creator-name-input" maxlength="10" value="Hero" />
+              </label>
+              <button data-role="creator-roll-button" type="button">Roll Hero</button>
+            </div>
+            <dl class="creator-summary" data-role="creator-summary"></dl>
+            <div class="stat-editor" data-role="creator-stats"></div>
+          </section>
+          <section class="panel creator-shop-panel">
+            <h2>Shop</h2>
+            <div class="store-pages" data-role="creator-store-pages"></div>
+            <label class="creator-offer">
+              Bargain Offer
+              <input data-role="creator-bargain-offer" type="number" min="0" step="1" value="0" />
+            </label>
+            <div class="store-items" data-role="creator-store-items"></div>
+          </section>
+          <aside class="sidebar creator-sidebar">
+            <section class="panel">
+              <h2>Creator Controls</h2>
+              <div class="creator-actions">
+                <button data-role="creator-validate-button" type="button">Validate</button>
+                <button data-role="creator-play-button" type="button">Play Created Hero</button>
+                <button data-role="creator-export-json-button" type="button">Export JSON</button>
+                <button data-role="creator-export-legacy-button" type="button">Export Legacy Hero</button>
+                <button data-role="creator-clear-output-button" type="button">Clear Creator Output</button>
+              </div>
+            </section>
+            <section class="panel">
+              <h2>Creator Status</h2>
+              <p class="creator-status" data-role="creator-status" data-state="idle" aria-live="polite">
+                Roll a hero, spend points, buy gear, then launch.
+              </p>
+              <ul class="creator-messages" data-role="creator-messages"></ul>
+            </section>
+          </aside>
+        </section>
+        <section class="panel creator-output-panel" aria-labelledby="creator-output-heading">
+          <h2 id="creator-output-heading">Creator Output</h2>
+          <textarea data-role="creator-output" spellcheck="false" rows="7"></textarea>
+        </section>
+      </section>
     </main>
   `;
 
   const modePlayButton = requireElement(root, '[data-role="mode-play-button"]', HTMLButtonElement);
   const modeEditorButton = requireElement(root, '[data-role="mode-editor-button"]', HTMLButtonElement);
+  const modeCreatorButton = requireElement(root, '[data-role="mode-creator-button"]', HTMLButtonElement);
   const playModePanel = requireElement(root, '[data-role="play-mode"]', HTMLElement);
   const editorModePanel = requireElement(root, '[data-role="editor-mode"]', HTMLElement);
+  const creatorModePanel = requireElement(root, '[data-role="creator-mode"]', HTMLElement);
   const heroSelect = requireElement(root, '[data-role="hero-select"]', HTMLSelectElement);
   const levelSelect = requireElement(root, '[data-role="level-select"]', HTMLSelectElement);
   const seedInput = requireElement(root, '[data-role="seed-input"]', HTMLInputElement);
@@ -198,6 +276,34 @@ export function mountApp(root: HTMLDivElement) {
   const editorStatus = requireElement(root, '[data-role="editor-status"]', HTMLParagraphElement);
   const editorMessages = requireElement(root, '[data-role="editor-messages"]', HTMLUListElement);
   const editorOutput = requireElement(root, '[data-role="editor-output"]', HTMLTextAreaElement);
+  const creatorSeedInput = requireElement(root, '[data-role="creator-seed-input"]', HTMLInputElement);
+  const creatorNameInput = requireElement(root, '[data-role="creator-name-input"]', HTMLInputElement);
+  const creatorRollButton = requireElement(root, '[data-role="creator-roll-button"]', HTMLButtonElement);
+  const creatorSummary = requireElement(root, '[data-role="creator-summary"]', HTMLDListElement);
+  const creatorStats = requireElement(root, '[data-role="creator-stats"]', HTMLDivElement);
+  const creatorStorePages = requireElement(root, '[data-role="creator-store-pages"]', HTMLDivElement);
+  const creatorBargainOffer = requireElement(root, '[data-role="creator-bargain-offer"]', HTMLInputElement);
+  const creatorStoreItems = requireElement(root, '[data-role="creator-store-items"]', HTMLDivElement);
+  const creatorValidateButton = requireElement(root, '[data-role="creator-validate-button"]', HTMLButtonElement);
+  const creatorPlayButton = requireElement(root, '[data-role="creator-play-button"]', HTMLButtonElement);
+  const creatorExportJsonButton = requireElement(
+    root,
+    '[data-role="creator-export-json-button"]',
+    HTMLButtonElement
+  );
+  const creatorExportLegacyButton = requireElement(
+    root,
+    '[data-role="creator-export-legacy-button"]',
+    HTMLButtonElement
+  );
+  const creatorClearOutputButton = requireElement(
+    root,
+    '[data-role="creator-clear-output-button"]',
+    HTMLButtonElement
+  );
+  const creatorStatus = requireElement(root, '[data-role="creator-status"]', HTMLParagraphElement);
+  const creatorMessages = requireElement(root, '[data-role="creator-messages"]', HTMLUListElement);
+  const creatorOutput = requireElement(root, '[data-role="creator-output"]', HTMLTextAreaElement);
 
   for (const option of HERO_OPTIONS) {
     heroSelect.add(new Option(option.label, option.value));
@@ -216,6 +322,15 @@ export function mountApp(root: HTMLDivElement) {
     editorToolPalette.append(button);
   }
 
+  for (const option of CREATOR_STORE_PAGES) {
+    const button = document.createElement('button');
+
+    button.type = 'button';
+    button.dataset.storePage = option.page;
+    button.textContent = option.label;
+    creatorStorePages.append(button);
+  }
+
   heroSelect.value = HERO_OPTIONS[0].value;
   levelSelect.value = LEVEL_OPTIONS[0].value;
 
@@ -225,26 +340,34 @@ export function mountApp(root: HTMLDivElement) {
   let mode: AppMode = 'play';
   let game: Game | null = null;
   let importedHero: HeroState | null = null;
+  let createdHero: HeroState | null = null;
   let importedLevel: LevelDefinition | null = null;
   let authoredLevel: LevelDefinition | null = null;
   let editorDraft: EditorDraft = createDefaultEditorDraft();
+  let creatorDraft: CreatorDraft = createDefaultCreatorDraft(Number(creatorSeedInput.value) || 1984);
+  let creatorStatusMessage = 'Roll a hero, spend points, buy gear, then launch.';
+  let creatorStatusState: StatusState = 'idle';
+  let creatorMessageRows: string[] = [];
   let appMessages: string[] = [];
 
   function renderApp() {
     renderMode();
     renderCurrentGame();
     renderEditor();
+    renderCreator();
   }
 
   function renderMode() {
     playModePanel.hidden = mode !== 'play';
     editorModePanel.hidden = mode !== 'editor';
+    creatorModePanel.hidden = mode !== 'creator';
     modePlayButton.setAttribute('aria-pressed', String(mode === 'play'));
     modeEditorButton.setAttribute('aria-pressed', String(mode === 'editor'));
+    modeCreatorButton.setAttribute('aria-pressed', String(mode === 'creator'));
 
     if (mode === 'editor') {
       editorRenderer.resize();
-    } else {
+    } else if (mode === 'play') {
       renderer.resize();
     }
   }
@@ -291,6 +414,70 @@ export function mountApp(root: HTMLDivElement) {
     }
   }
 
+  function renderCreator() {
+    const classId = deriveClassId(creatorDraft.stats);
+
+    creatorSeedInput.value = String(creatorDraft.seed);
+    creatorNameInput.value = creatorDraft.name;
+    creatorBargainOffer.value = String(creatorDraft.bargainOffer);
+    creatorSummary.innerHTML = `
+      ${renderStat('CLASS', CLASS_LABELS[classId].toUpperCase())}
+      ${renderStat('GOLD', creatorDraft.gold)}
+      ${renderStat('POINTS', creatorDraft.modificationPoints)}
+      ${renderStat('SEED', creatorDraft.seed)}
+    `;
+    creatorStats.innerHTML = `
+      ${ADJUSTABLE_CREATOR_STAT_KEYS.map(
+        (stat) => `
+          <div class="stat-control">
+            <span>${escapeHtml(formatStatLabel(stat))}</span>
+            <button data-stat="${stat}" data-delta="-1" type="button" aria-label="Lower ${escapeHtml(formatStatLabel(stat))}">-</button>
+            <strong>${creatorDraft.stats[stat]}</strong>
+            <button data-stat="${stat}" data-delta="1" type="button" aria-label="Raise ${escapeHtml(formatStatLabel(stat))}">+</button>
+          </div>
+        `
+      ).join('')}
+      <div class="stat-control stat-control-locked">
+        <span>EXP</span>
+        <em>fixed</em>
+        <strong>${creatorDraft.stats.experience}</strong>
+      </div>
+    `;
+
+    for (const button of creatorStorePages.querySelectorAll<HTMLButtonElement>('button[data-store-page]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.storePage === creatorDraft.selectedStorePage));
+    }
+
+    creatorStoreItems.innerHTML = itemsForCreatorPage(creatorDraft.selectedStorePage)
+      .map((item) => {
+        const owned = creatorDraft.inventorySlots[item.slot] ?? 0;
+        const allowed = item.allowedClasses.includes(classId);
+
+        return `
+          <article class="store-item" data-allowed="${String(allowed)}">
+            <div>
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>Slot ${item.slot} - ${item.price} gold - value ${item.power}</span>
+            </div>
+            <div class="store-item-meta">
+              <span>${allowed ? 'Allowed' : `Not for ${CLASS_LABELS[classId]}`}</span>
+              <span>Owned ${owned}</span>
+            </div>
+            <div class="store-item-actions">
+              <button data-slot="${item.slot}" data-purchase-mode="fullPrice" type="button">Buy</button>
+              <button data-slot="${item.slot}" data-purchase-mode="bargain" type="button">Bargain</button>
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+    creatorStatus.textContent = creatorStatusMessage;
+    creatorStatus.dataset.state = creatorStatusState;
+    creatorMessages.innerHTML = creatorMessageRows
+      .map((message) => `<li>${escapeHtml(message)}</li>`)
+      .join('');
+  }
+
   function buildNewGame() {
     const heroFixture = resolveSelectedHero();
     const levelFixture = resolveSelectedLevel();
@@ -303,6 +490,10 @@ export function mountApp(root: HTMLDivElement) {
   function resolveSelectedHero(): HeroState {
     if (heroSelect.value === IMPORTED_HERO_VALUE && importedHero) {
       return structuredClone(importedHero);
+    }
+
+    if (heroSelect.value === CREATED_HERO_VALUE && createdHero) {
+      return structuredClone(createdHero);
     }
 
     const hero = heroFixtures[heroSelect.value as keyof typeof heroFixtures];
@@ -411,8 +602,12 @@ export function mountApp(root: HTMLDivElement) {
     levelPayload.value = '';
     removeOption(heroSelect, IMPORTED_HERO_VALUE);
     removeOption(levelSelect, IMPORTED_LEVEL_VALUE);
-    heroSelect.value = HERO_OPTIONS[0].value;
-    levelSelect.value = LEVEL_OPTIONS[0].value;
+    if (heroSelect.value === IMPORTED_HERO_VALUE) {
+      heroSelect.value = HERO_OPTIONS[0].value;
+    }
+    if (levelSelect.value === IMPORTED_LEVEL_VALUE) {
+      levelSelect.value = LEVEL_OPTIONS[0].value;
+    }
     setLegacyStatus('Legacy imports cleared.', 'idle');
     pushAppMessage('Legacy imports cleared.');
     renderApp();
@@ -562,6 +757,135 @@ export function mountApp(root: HTMLDivElement) {
     renderApp();
   }
 
+  function rollCreatorHero() {
+    const seed = Number(creatorSeedInput.value) || 1984;
+
+    creatorDraft = createDefaultCreatorDraft(seed);
+    creatorOutput.value = '';
+    setCreatorStatus('Rolled a new hero draft.', 'success');
+    renderApp();
+  }
+
+  function syncCreatorInputs() {
+    creatorDraft = {
+      ...creatorDraft,
+      name: creatorNameInput.value,
+      bargainOffer: Number(creatorBargainOffer.value)
+    };
+  }
+
+  function setCreatorStorePage(page: CreatorStorePage) {
+    creatorDraft = {
+      ...creatorDraft,
+      selectedStorePage: page
+    };
+    renderApp();
+  }
+
+  function adjustCreator(stat: CreatorStatKey, delta: number) {
+    syncCreatorInputs();
+
+    const previous = creatorDraft;
+    const next = adjustCreatorStat(previous, stat, delta);
+    const didChange =
+      next.stats[stat] !== previous.stats[stat] ||
+      next.modificationPoints !== previous.modificationPoints;
+
+    creatorDraft = next;
+
+    if (didChange) {
+      setCreatorStatus(`Adjusted ${formatStatLabel(stat)}.`, 'success');
+    } else if (delta > 0) {
+      setCreatorStatus('No modification points remain.', 'error');
+    } else {
+      setCreatorStatus(`${formatStatLabel(stat)} cannot be lowered further.`, 'error');
+    }
+
+    renderApp();
+  }
+
+  function purchaseCreatorItem(slot: number, mode: CreatorPurchaseMode) {
+    syncCreatorInputs();
+
+    const result = attemptCreatorPurchase(creatorDraft, slot, mode, Number(creatorBargainOffer.value));
+
+    creatorDraft = result.draft;
+    setCreatorStatus(result.message, result.success ? 'success' : 'error');
+    renderApp();
+  }
+
+  function validateCreator() {
+    syncCreatorInputs();
+
+    const validation = validateCreatorDraft(creatorDraft);
+
+    setCreatorStatus(
+      validation.canCreate ? 'Hero validates for play.' : 'Hero has blocking errors.',
+      validation.canCreate ? 'success' : 'error',
+      validation
+    );
+    renderApp();
+  }
+
+  function playCreatedHero() {
+    syncCreatorInputs();
+
+    const validation = validateCreatorDraft(creatorDraft);
+
+    if (!validation.canCreate) {
+      setCreatorStatus('Cannot play this hero yet.', 'error', validation);
+      renderApp();
+      return;
+    }
+
+    createdHero = heroFromCreatorDraft(creatorDraft);
+    ensureOption(heroSelect, CREATED_HERO_VALUE, 'Created Hero');
+    heroSelect.value = CREATED_HERO_VALUE;
+    mode = 'play';
+    game = buildNewGame();
+    pushAppMessage('Started created hero.');
+    setCreatorStatus('Created hero launched in play mode.', 'success', validation);
+    renderApp();
+  }
+
+  function exportCreatorJson() {
+    syncCreatorInputs();
+
+    const validation = validateCreatorDraft(creatorDraft);
+
+    if (!validation.canCreate) {
+      setCreatorStatus('Cannot export JSON until blocking errors are fixed.', 'error', validation);
+      renderApp();
+      return;
+    }
+
+    creatorOutput.value = formatHeroDocument(heroFromCreatorDraft(creatorDraft));
+    setCreatorStatus('Exported modern hero JSON.', 'success', validation);
+    renderApp();
+  }
+
+  function exportCreatorLegacy() {
+    syncCreatorInputs();
+
+    const validation = validateCreatorDraft(creatorDraft);
+
+    if (!validation.canExportLegacy) {
+      setCreatorStatus('Cannot export legacy hero until blocking errors are fixed.', 'error', validation);
+      renderApp();
+      return;
+    }
+
+    creatorOutput.value = formatHeroString(heroFromCreatorDraft(creatorDraft));
+    setCreatorStatus('Exported legacy hero.', 'success', validation);
+    renderApp();
+  }
+
+  function clearCreatorOutput() {
+    creatorOutput.value = '';
+    setCreatorStatus('Creator output cleared.', 'idle');
+    renderApp();
+  }
+
   function setLegacyStatus(message: string, state: StatusState) {
     legacyStatus.textContent = message;
     legacyStatus.dataset.state = state;
@@ -586,6 +910,25 @@ export function mountApp(root: HTMLDivElement) {
       .join('');
   }
 
+  function setCreatorStatus(message: string, state: StatusState, validation?: CreatorValidation) {
+    creatorStatusMessage = message;
+    creatorStatusState = state;
+
+    if (!validation) {
+      creatorMessageRows = [message];
+      return;
+    }
+
+    creatorMessageRows = [
+      ...validation.errors.map((entry) => `Error: ${entry}`),
+      ...validation.warnings.map((entry) => `Warning: ${entry}`)
+    ];
+
+    if (creatorMessageRows.length === 0) {
+      creatorMessageRows = [message];
+    }
+  }
+
   function pushAppMessage(message: string) {
     appMessages = [...appMessages, message].slice(-4);
   }
@@ -603,6 +946,9 @@ export function mountApp(root: HTMLDivElement) {
   });
   modeEditorButton.addEventListener('click', () => {
     setMode('editor');
+  });
+  modeCreatorButton.addEventListener('click', () => {
+    setMode('creator');
   });
   startButton.addEventListener('click', () => {
     startRun();
@@ -657,6 +1003,63 @@ export function mountApp(root: HTMLDivElement) {
   });
   editorClearOutputButton.addEventListener('click', () => {
     clearEditorOutput();
+  });
+  creatorRollButton.addEventListener('click', () => {
+    rollCreatorHero();
+  });
+  creatorNameInput.addEventListener('input', () => {
+    creatorDraft = {
+      ...creatorDraft,
+      name: creatorNameInput.value
+    };
+  });
+  creatorBargainOffer.addEventListener('input', () => {
+    creatorDraft = {
+      ...creatorDraft,
+      bargainOffer: Number(creatorBargainOffer.value)
+    };
+  });
+  creatorStats.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.stat || !target.dataset.delta) {
+      return;
+    }
+
+    adjustCreator(target.dataset.stat as CreatorStatKey, Number(target.dataset.delta));
+  });
+  creatorStorePages.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.storePage) {
+      return;
+    }
+
+    setCreatorStorePage(target.dataset.storePage as CreatorStorePage);
+  });
+  creatorStoreItems.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.slot || !target.dataset.purchaseMode) {
+      return;
+    }
+
+    purchaseCreatorItem(Number(target.dataset.slot), target.dataset.purchaseMode as CreatorPurchaseMode);
+  });
+  creatorValidateButton.addEventListener('click', () => {
+    validateCreator();
+  });
+  creatorPlayButton.addEventListener('click', () => {
+    playCreatedHero();
+  });
+  creatorExportJsonButton.addEventListener('click', () => {
+    exportCreatorJson();
+  });
+  creatorExportLegacyButton.addEventListener('click', () => {
+    exportCreatorLegacy();
+  });
+  creatorClearOutputButton.addEventListener('click', () => {
+    clearCreatorOutput();
   });
 
   let editorPointerDown = false;
@@ -757,6 +1160,27 @@ function mapKeyToAction(key: string): Action | null {
       return { type: 'wait' };
     default:
       return null;
+  }
+}
+
+function formatStatLabel(stat: CreatorStatKey) {
+  switch (stat) {
+    case 'strength':
+      return 'STR';
+    case 'vitality':
+      return 'VIT';
+    case 'agility':
+      return 'AGI';
+    case 'intelligence':
+      return 'INT';
+    case 'experience':
+      return 'EXP';
+    case 'luck':
+      return 'LUC';
+    case 'aura':
+      return 'AUR';
+    case 'morality':
+      return 'MOR';
   }
 }
 

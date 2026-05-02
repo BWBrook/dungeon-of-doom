@@ -8,6 +8,7 @@ import {
   parseHeroString,
   parseLevelString
 } from '../src/persist/legacy';
+import { parseHeroDocument } from '../src/persist/heroDocument';
 import { parseLevelDocument } from '../src/persist/levelDocument';
 
 async function resetPage(page: Page) {
@@ -19,6 +20,11 @@ async function resetPage(page: Page) {
 async function openEditor(page: Page) {
   await page.getByRole('button', { name: 'Editor' }).click();
   await expect(page.locator('[data-role="editor-mode"]')).toBeVisible();
+}
+
+async function openCreator(page: Page) {
+  await page.getByRole('button', { name: 'Creator' }).click();
+  await expect(page.locator('[data-role="creator-mode"]')).toBeVisible();
 }
 
 async function chooseEditorTool(page: Page, name: string) {
@@ -229,4 +235,90 @@ test('loads an imported legacy level into the editor and exports it again', asyn
   const exported = await page.locator('[data-role="editor-output"]').inputValue();
 
   expect(parseLevelString(exported).startPosition).toEqual({ x: 0, y: 0 });
+});
+
+test('creates a hero, exports modern and legacy payloads, and launches play', async ({ page }) => {
+  await resetPage(page);
+  await openCreator(page);
+
+  await page.getByLabel('Hero Name').fill('Mira');
+  await page.getByRole('button', { name: 'Raise STR' }).click();
+  await page.getByRole('button', { name: 'Emporium' }).click();
+
+  const salve = page.locator('.store-item', { hasText: 'healing salve' });
+
+  await salve.getByRole('button', { name: 'Buy' }).click();
+  await expect(page.locator('[data-role="creator-status"]')).toContainText('Tis yours.');
+  await expect(salve).toContainText('Owned 1');
+
+  await page.getByRole('button', { name: 'Validate' }).click();
+  await expect(page.locator('[data-role="creator-status"]')).toContainText(
+    'Hero validates for play.'
+  );
+
+  await page.getByRole('button', { name: 'Export JSON' }).click();
+  const jsonOutput = await page.locator('[data-role="creator-output"]').inputValue();
+
+  expect(parseHeroDocument(jsonOutput).hero.name).toBe('Mira');
+
+  await page.getByRole('button', { name: 'Export Legacy Hero' }).click();
+  const legacyOutput = await page.locator('[data-role="creator-output"]').inputValue();
+
+  expect(parseHeroString(legacyOutput).name).toBe('Mira');
+
+  await page.getByRole('button', { name: 'Play Created Hero' }).click();
+  await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
+  await expect(page.locator('[data-role="hero-select"]')).toHaveValue(
+    '__created_creator_hero__'
+  );
+  await expect(page.locator('.hud-row').filter({ hasText: 'RUN' }).locator('dd')).toContainText(
+    'PLAYING'
+  );
+});
+
+test('blocks invalid created heroes and visible forbidden purchases', async ({ page }) => {
+  await resetPage(page);
+  await openCreator(page);
+
+  await page.getByRole('button', { name: 'Buy' }).first().click();
+  await expect(page.locator('[data-role="creator-status"]')).toContainText('Not for wanderer.');
+
+  const firstItem = page.locator('.store-item').first();
+
+  await expect(firstItem).toContainText('Owned 0');
+
+  await page.getByLabel('Hero Name').fill('');
+  await page.getByRole('button', { name: 'Play Created Hero' }).click();
+  await expect(page.locator('[data-role="creator-status"]')).toContainText(
+    'Cannot play this hero yet.'
+  );
+  await expect(page.locator('[data-role="creator-messages"]')).toContainText(
+    'Hero name is required.'
+  );
+
+  await page.getByRole('button', { name: 'Export Legacy Hero' }).click();
+  await expect(page.locator('[data-role="creator-status"]')).toContainText(
+    'Cannot export legacy hero until blocking errors are fixed.'
+  );
+});
+
+test('stacks creator restoratives and preserves mode switching', async ({ page }) => {
+  await resetPage(page);
+  await openCreator(page);
+
+  await page.getByRole('button', { name: 'Emporium' }).click();
+
+  const salve = page.locator('.store-item', { hasText: 'healing salve' });
+
+  await salve.getByRole('button', { name: 'Buy' }).click();
+  await salve.getByRole('button', { name: 'Buy' }).click();
+  await expect(salve).toContainText('Owned 2');
+
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Editor' }).click();
+  await expect(page.locator('[data-role="editor-mode"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Creator' }).click();
+  await expect(page.locator('[data-role="creator-mode"]')).toBeVisible();
+  await expect(salve).toContainText('Owned 2');
 });

@@ -459,9 +459,203 @@ select {
   resize: vertical;
 }
 
+.creator-workbench {
+  display: grid;
+  grid-template-columns: minmax(17rem, 1fr) minmax(20rem, 1.2fr) minmax(17rem, 0.85fr);
+  gap: 1.25rem;
+  align-items: start;
+  margin-bottom: 1.25rem;
+}
+
+.creator-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.creator-form label,
+.creator-offer {
+  display: grid;
+  gap: 0.38rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.creator-form input,
+.creator-offer input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-main);
+  background: rgba(10, 10, 9, 0.55);
+}
+
+.creator-form button,
+.creator-actions button,
+.store-pages button,
+.store-item-actions button,
+.stat-control button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--text-main);
+  background: rgba(10, 10, 9, 0.4);
+}
+
+.creator-form button {
+  color: #1c1309;
+  background: linear-gradient(180deg, #f3cf7f 0%, #c79442 100%);
+  font-weight: 700;
+}
+
+.creator-summary {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+}
+
+.stat-editor {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.stat-control {
+  display: grid;
+  grid-template-columns: 1fr 2.35rem 3rem 2.35rem;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.45rem;
+  border-radius: 0.8rem;
+  background: rgba(10, 10, 9, 0.34);
+}
+
+.stat-control span {
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  font-size: 0.77rem;
+}
+
+.stat-control strong,
+.stat-control em {
+  text-align: center;
+}
+
+.stat-control em {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.stat-control-locked {
+  grid-template-columns: 1fr 4.9rem 3rem;
+}
+
+.store-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.store-pages button[aria-pressed='true'] {
+  color: #1c1309;
+  background: linear-gradient(180deg, #f3cf7f 0%, #c79442 100%);
+  font-weight: 700;
+}
+
+.creator-offer {
+  margin-bottom: 0.85rem;
+}
+
+.store-items {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.store-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(8rem, 0.8fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--edge-soft);
+  border-radius: 0.95rem;
+  background: rgba(10, 10, 9, 0.32);
+}
+
+.store-item[data-allowed='false'] {
+  border-color: rgba(163, 71, 42, 0.42);
+}
+
+.store-item strong {
+  display: block;
+  margin-bottom: 0.18rem;
+  color: var(--text-main);
+}
+
+.store-item span {
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+
+.store-item-meta,
+.store-item-actions,
+.creator-actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.store-item-actions {
+  grid-template-columns: repeat(2, minmax(4.5rem, 1fr));
+}
+
+.creator-status {
+  margin: 0 0 0.75rem;
+  color: var(--text-dim);
+}
+
+.creator-status[data-state='success'] {
+  color: #d7d38b;
+}
+
+.creator-status[data-state='error'] {
+  color: #f2a28e;
+}
+
+.creator-messages {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--text-dim);
+}
+
+.creator-output-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.creator-output-panel h2 {
+  margin-bottom: 0;
+}
+
+.creator-output-panel textarea {
+  width: 100%;
+  min-height: 10rem;
+  padding: 0.75rem;
+  color: var(--text-main);
+  background: rgba(10, 10, 9, 0.55);
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+
 @media (max-width: 980px) {
   .playframe,
-  .editor-workbench {
+  .editor-workbench,
+  .creator-workbench {
     grid-template-columns: 1fr;
   }
 
@@ -475,6 +669,14 @@ select {
 
   .tool-palette {
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  }
+
+  .store-item {
+    grid-template-columns: 1fr;
+  }
+
+  .store-item-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -514,8 +716,14 @@ select {
   }
 
   .mode-switch button,
-  .editor-actions button {
+  .editor-actions button,
+  .creator-actions button {
     flex: 1;
     width: 100%;
+  }
+
+  .creator-form,
+  .store-item-actions {
+    grid-template-columns: 1fr;
   }
 }
