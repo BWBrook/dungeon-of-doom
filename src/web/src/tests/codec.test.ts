@@ -38,6 +38,11 @@ function createArchivalLevelFixture(): LevelDefinition {
 }
 
 describe('legacy codecs', () => {
+  it('rejects malformed hero and level payloads clearly', () => {
+    expect(() => parseHeroString('short')).toThrow(/too short/);
+    expect(() => parseLevelString('short')).toThrow(/too short/);
+  });
+
   it('round-trips hero payloads and keeps treasure separate from display label', () => {
     const heroString = formatHeroString(clericStarter);
     const parsed = parseHeroString(heroString);
@@ -57,6 +62,21 @@ describe('legacy codecs', () => {
     expect(parsed.startPosition).toEqual(level.startPosition);
     expect(parsed.authoredEntrancePosition).toEqual(level.authoredEntrancePosition);
     expect(parsed.monsterSpawns).toHaveLength(1);
+    expect(parsed.monsterSpawns[0]?.position).toEqual({ x: 2, y: 2 });
+    expect(parsed.cells[32]?.kind).toBe('floor');
+    expect(formatLevelString(parsed)).toBe(levelString);
+  });
+
+  it('accepts record-broken level input and preserves coordinates', () => {
+    const level = createArchivalLevelFixture();
+
+    level.startPosition = { x: 14, y: 3 };
+
+    const levelString = formatLevelString(level);
+    const recordBroken = levelString.match(/.{1,76}/g)?.join('\n') ?? levelString;
+    const parsed = parseLevelString(recordBroken);
+
+    expect(parsed.startPosition).toEqual({ x: 14, y: 3 });
     expect(formatLevelString(parsed)).toBe(levelString);
   });
 });

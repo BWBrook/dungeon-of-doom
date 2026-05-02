@@ -57,6 +57,15 @@ export function parseHeroString(input: string): HeroState {
   }
 
   const objectCount = source.charCodeAt(0) - LEGACY_AS;
+
+  if (objectCount !== 24) {
+    throw new Error('Legacy hero payload has an unsupported inventory slot count.');
+  }
+
+  if (source.length < 1 + 8 + objectCount + 2) {
+    throw new Error('Legacy hero payload is truncated.');
+  }
+
   const stats = {
     strength: source.charCodeAt(1) - LEGACY_AS,
     vitality: source.charCodeAt(2) - LEGACY_AS,
@@ -178,6 +187,15 @@ export function parseLevelString(input: string): LevelDefinition {
     y: fromLegacyCoordinate(source.charCodeAt(226))
   };
   const levelId = source.charCodeAt(227) - LEGACY_OS;
+
+  if (
+    startPosition.x < 0 ||
+    startPosition.y < 0 ||
+    startPosition.x >= 15 ||
+    startPosition.y >= 15
+  ) {
+    throw new Error('Legacy level start coordinates are out of bounds.');
+  }
 
   return {
     id: levelId,
