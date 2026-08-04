@@ -1,11 +1,9 @@
 import {
-  ADJUSTABLE_CREATOR_STAT_KEYS,
   CREATOR_STORE_PAGES,
   adjustCreatorStat,
   attemptCreatorPurchase,
   createDefaultCreatorDraft,
   heroFromCreatorDraft,
-  itemsForCreatorPage,
   validateCreatorDraft
 } from '../creator/model';
 import type {
@@ -15,11 +13,7 @@ import type {
   CreatorStorePage,
   CreatorValidation
 } from '../creator/model';
-import {
-  CLASS_LABELS,
-  SPELL_NAMES,
-  deriveClassId
-} from '../engine/catalog';
+import { SPELL_NAMES } from '../engine/catalog';
 import {
   EDITOR_TOOLS,
   createDefaultEditorDraft,
@@ -41,6 +35,17 @@ import type {
   SpellSlot,
   StepResult
 } from '../engine/types';
+import {
+  convertLegacySnapshotToRun,
+  formatLegacyReport,
+  inspectLegacyHero,
+  inspectLegacyLevel,
+  inspectLegacySnapshotPair,
+  roundTripLegacyHero,
+  roundTripLegacyLevel
+} from '../persist/archive';
+import type { LegacyDiagnostic, LegacyPayloadReport } from '../persist/archive';
+import { ARCHIVE_EXAMPLES, archiveExampleById } from '../persist/archiveExamples';
 import { formatHeroString, formatLevelString, parseHeroString, parseLevelString } from '../persist/legacy';
 import { formatHeroDocument } from '../persist/heroDocument';
 import { formatLevelDocument } from '../persist/levelDocument';
@@ -54,11 +59,22 @@ import { loadSensoryPreferences, saveSensoryPreferences } from './sensoryPrefere
 import type { SensoryPreferences } from './sensoryPreferences';
 import { effectIntensity } from './visualEffects';
 import type { VisualEffectKind } from './visualCatalog';
+import { APP_TEMPLATE } from './appTemplate';
+import { escapeHtml, renderStat, requireElement } from './dom';
+import {
+  formatStatLabel,
+  renderArchiveView,
+  renderCreatorView,
+  renderEditorView
+} from './modeRenderers';
+import type { ArchiveViewRefs, CreatorViewRefs, ViewStatusState } from './modeRenderers';
 
 const IMPORTED_HERO_VALUE = '__imported_legacy_hero__';
 const CREATED_HERO_VALUE = '__created_creator_hero__';
 const IMPORTED_LEVEL_VALUE = '__imported_legacy_level__';
 const AUTHORED_LEVEL_VALUE = '__authored_editor_level__';
+const CONVERTED_HERO_VALUE = '__converted_legacy_snapshot_hero__';
+const CONVERTED_LEVEL_VALUE = '__converted_legacy_snapshot_level__';
 
 const HERO_OPTIONS = [
   { value: 'warrior_starter', label: 'Warrior Starter' },
@@ -73,8 +89,8 @@ const LEVEL_OPTIONS = [
   { value: 'idol_finish_level', label: 'Idol Finish' }
 ] as const;
 
-type AppMode = 'play' | 'editor' | 'creator';
-type StatusState = 'idle' | 'success' | 'error';
+type AppMode = 'play' | 'editor' | 'creator' | 'archive';
+type StatusState = ViewStatusState;
 
 const PLAY_COMMANDS: Array<{ id: CommandId; action: Action | null }> = [
   { id: 'turnLeft', action: { type: 'turnLeft' } },
@@ -97,214 +113,18 @@ declare global {
 }
 
 export function mountApp(root: HTMLDivElement) {
-  root.innerHTML = `
-    <main class="shell">
-      <section class="hero-copy">
-        <p class="eyebrow">Lamp-lit terminal edition</p>
-        <h1>Dungeon of Doom</h1>
-        <p class="lede">
-          Beneath ruined Crekkan, the engine keeps the rules and the terminal keeps the torch.
-        </p>
-      </section>
-      <section class="top-chrome">
-        <nav class="mode-switch" aria-label="Application mode">
-          <button data-role="mode-play-button" type="button">Play</button>
-          <button data-role="mode-editor-button" type="button">Editor</button>
-          <button data-role="mode-creator-button" type="button">Creator</button>
-        </nav>
-        <div class="sensory-controls" aria-label="Sensory controls">
-          <button data-role="sound-toggle" type="button" aria-pressed="true">Sound On</button>
-          <button data-role="motion-toggle" type="button" aria-pressed="true">Motion On</button>
-        </div>
-      </section>
-      <section data-role="play-mode">
-        <section class="toolbar">
-          <label>
-            Hero
-            <select data-role="hero-select"></select>
-          </label>
-          <label>
-            Level
-            <select data-role="level-select"></select>
-          </label>
-          <label>
-            Seed
-            <input data-role="seed-input" type="number" min="1" step="1" value="1984" />
-          </label>
-          <button data-role="start-button" type="button">Start Run</button>
-          <button data-role="save-button" type="button">Save Run</button>
-          <button data-role="resume-button" type="button">Resume Saved</button>
-        </section>
-        <section class="playframe">
-          <div class="canvas-frame">
-            <canvas data-role="canvas" aria-label="Dungeon grid"></canvas>
-          </div>
-          <aside class="sidebar">
-            <section class="panel run-brief">
-              <p class="run-kicker" data-role="run-subline">Select a hero and level.</p>
-              <h2 data-role="run-headline">Choose thy quest</h2>
-              <p class="latest-event" data-role="latest-event" aria-live="polite">The dungeon awaits.</p>
-            </section>
-            <section class="panel">
-              <h2>Status</h2>
-              <dl class="hud" data-role="hud"></dl>
-            </section>
-            <section class="panel command-panel">
-              <h2>Commands</h2>
-              <div class="command-grid" data-role="command-grid"></div>
-              <div class="spell-chooser" data-role="spell-chooser" hidden>
-                <p>Choose a spell from thy lore.</p>
-                <div data-role="spell-buttons"></div>
-              </div>
-              <p class="save-status" data-role="save-status" aria-live="polite">No run saved this session.</p>
-            </section>
-            <section class="panel">
-              <h2>Controls</h2>
-              <p>B/N turn, M move, A attack, G get, P restore, R reveal, C conjure, 1-6 quick-cast, . wait, S save.</p>
-            </section>
-            <section class="panel">
-              <h2>Messages</h2>
-              <ol class="messages" data-role="messages" aria-live="polite"></ol>
-            </section>
-          </aside>
-        </section>
-        <section class="panel outcome-panel" data-role="outcome-panel" hidden>
-          <div>
-            <p class="run-kicker" data-role="outcome-subline">Run complete</p>
-            <h2 data-role="outcome-title">Outcome</h2>
-            <p data-role="outcome-body"></p>
-          </div>
-          <div class="outcome-actions">
-            <button data-role="outcome-start-button" type="button">Start Run</button>
-            <button data-role="outcome-export-hero-button" type="button">Export Hero</button>
-            <button data-role="outcome-export-level-button" type="button">Export Level</button>
-          </div>
-        </section>
-        <section class="panel legacy-panel" aria-labelledby="legacy-heading">
-          <div class="legacy-header">
-            <h2 id="legacy-heading">Legacy Interop</h2>
-            <p class="legacy-status" data-role="legacy-status" data-state="idle" aria-live="polite">
-              Paste packed HERO or LEVEL text to import archival data.
-            </p>
-          </div>
-          <div class="legacy-grid">
-            <label class="payload-field">
-              Hero Payload
-              <textarea data-role="hero-payload" spellcheck="false" rows="5"></textarea>
-            </label>
-            <label class="payload-field">
-              Level Payload
-              <textarea data-role="level-payload" spellcheck="false" rows="5"></textarea>
-            </label>
-          </div>
-          <div class="legacy-actions">
-            <button data-role="import-hero-button" type="button">Import Hero</button>
-            <button data-role="import-level-button" type="button">Import Level</button>
-            <button data-role="export-hero-button" type="button">Export Hero</button>
-            <button data-role="export-level-button" type="button">Export Level</button>
-            <button data-role="clear-legacy-button" type="button">Clear Legacy</button>
-          </div>
-        </section>
-      </section>
-      <section data-role="editor-mode" hidden>
-        <section class="editor-workbench">
-          <div class="canvas-frame editor-canvas-frame">
-            <canvas data-role="editor-canvas" aria-label="Dungeon editor grid"></canvas>
-          </div>
-          <aside class="sidebar editor-sidebar">
-            <section class="panel">
-              <h2>Editor Tools</h2>
-              <div class="tool-palette" data-role="editor-tool-palette"></div>
-            </section>
-            <section class="panel">
-              <h2>Editor Controls</h2>
-              <div class="editor-actions">
-                <button data-role="editor-new-button" type="button">New Level</button>
-                <button data-role="editor-edit-selected-button" type="button">Edit Selected Level</button>
-                <button data-role="editor-validate-button" type="button">Validate</button>
-                <button data-role="editor-play-button" type="button">Play Authored Level</button>
-                <button data-role="editor-export-json-button" type="button">Export JSON</button>
-                <button data-role="editor-export-legacy-button" type="button">Export Legacy Level</button>
-                <button data-role="editor-clear-output-button" type="button">Clear Editor Output</button>
-              </div>
-            </section>
-            <section class="panel">
-              <h2>Editor Status</h2>
-              <p class="editor-status" data-role="editor-status" data-state="idle" aria-live="polite">
-                Paint a level, then validate or launch it.
-              </p>
-              <ul class="editor-messages" data-role="editor-messages"></ul>
-            </section>
-          </aside>
-        </section>
-        <section class="panel editor-output-panel" aria-labelledby="editor-output-heading">
-          <h2 id="editor-output-heading">Editor Output</h2>
-          <textarea data-role="editor-output" spellcheck="false" rows="7"></textarea>
-        </section>
-      </section>
-      <section data-role="creator-mode" hidden>
-        <section class="creator-workbench">
-          <section class="panel creator-panel">
-            <h2>Roll Hero</h2>
-            <div class="creator-form">
-              <label>
-                Creator Seed
-                <input data-role="creator-seed-input" type="number" min="1" step="1" value="1984" />
-              </label>
-              <label>
-                Hero Name
-                <input data-role="creator-name-input" maxlength="10" value="Hero" />
-              </label>
-              <button data-role="creator-roll-button" type="button">Roll Hero</button>
-            </div>
-            <dl class="creator-summary" data-role="creator-summary"></dl>
-            <div class="stat-editor" data-role="creator-stats"></div>
-          </section>
-          <section class="panel creator-shop-panel">
-            <h2>Shop</h2>
-            <div class="store-pages" data-role="creator-store-pages"></div>
-            <label class="creator-offer">
-              Bargain Offer
-              <input data-role="creator-bargain-offer" type="number" min="0" step="1" value="0" />
-            </label>
-            <div class="store-items" data-role="creator-store-items"></div>
-          </section>
-          <aside class="sidebar creator-sidebar">
-            <section class="panel">
-              <h2>Creator Controls</h2>
-              <div class="creator-actions">
-                <button data-role="creator-validate-button" type="button">Validate</button>
-                <button data-role="creator-play-button" type="button">Play Created Hero</button>
-                <button data-role="creator-export-json-button" type="button">Export JSON</button>
-                <button data-role="creator-export-legacy-button" type="button">Export Legacy Hero</button>
-                <button data-role="creator-clear-output-button" type="button">Clear Creator Output</button>
-              </div>
-            </section>
-            <section class="panel">
-              <h2>Creator Status</h2>
-              <p class="creator-status" data-role="creator-status" data-state="idle" aria-live="polite">
-                Roll a hero, spend points, buy gear, then launch.
-              </p>
-              <ul class="creator-messages" data-role="creator-messages"></ul>
-            </section>
-          </aside>
-        </section>
-        <section class="panel creator-output-panel" aria-labelledby="creator-output-heading">
-          <h2 id="creator-output-heading">Creator Output</h2>
-          <textarea data-role="creator-output" spellcheck="false" rows="7"></textarea>
-        </section>
-      </section>
-    </main>
-  `;
+  root.innerHTML = APP_TEMPLATE;
 
   const modePlayButton = requireElement(root, '[data-role="mode-play-button"]', HTMLButtonElement);
   const modeEditorButton = requireElement(root, '[data-role="mode-editor-button"]', HTMLButtonElement);
   const modeCreatorButton = requireElement(root, '[data-role="mode-creator-button"]', HTMLButtonElement);
+  const modeArchiveButton = requireElement(root, '[data-role="mode-archive-button"]', HTMLButtonElement);
   const soundToggle = requireElement(root, '[data-role="sound-toggle"]', HTMLButtonElement);
   const motionToggle = requireElement(root, '[data-role="motion-toggle"]', HTMLButtonElement);
   const playModePanel = requireElement(root, '[data-role="play-mode"]', HTMLElement);
   const editorModePanel = requireElement(root, '[data-role="editor-mode"]', HTMLElement);
   const creatorModePanel = requireElement(root, '[data-role="creator-mode"]', HTMLElement);
+  const archiveModePanel = requireElement(root, '[data-role="archive-mode"]', HTMLElement);
   const heroSelect = requireElement(root, '[data-role="hero-select"]', HTMLSelectElement);
   const levelSelect = requireElement(root, '[data-role="level-select"]', HTMLSelectElement);
   const seedInput = requireElement(root, '[data-role="seed-input"]', HTMLInputElement);
@@ -388,6 +208,67 @@ export function mountApp(root: HTMLDivElement) {
   const creatorStatus = requireElement(root, '[data-role="creator-status"]', HTMLParagraphElement);
   const creatorMessages = requireElement(root, '[data-role="creator-messages"]', HTMLUListElement);
   const creatorOutput = requireElement(root, '[data-role="creator-output"]', HTMLTextAreaElement);
+  const archiveExampleSelect = requireElement(root, '[data-role="archive-example-select"]', HTMLSelectElement);
+  const archiveLoadExampleButton = requireElement(
+    root,
+    '[data-role="archive-load-example-button"]',
+    HTMLButtonElement
+  );
+  const archiveInspectHeroButton = requireElement(
+    root,
+    '[data-role="archive-inspect-hero-button"]',
+    HTMLButtonElement
+  );
+  const archiveInspectLevelButton = requireElement(
+    root,
+    '[data-role="archive-inspect-level-button"]',
+    HTMLButtonElement
+  );
+  const archiveRoundTripHeroButton = requireElement(
+    root,
+    '[data-role="archive-roundtrip-hero-button"]',
+    HTMLButtonElement
+  );
+  const archiveRoundTripLevelButton = requireElement(
+    root,
+    '[data-role="archive-roundtrip-level-button"]',
+    HTMLButtonElement
+  );
+  const archiveInspectSnapshotButton = requireElement(
+    root,
+    '[data-role="archive-inspect-snapshot-button"]',
+    HTMLButtonElement
+  );
+  const archiveConvertSnapshotButton = requireElement(
+    root,
+    '[data-role="archive-convert-snapshot-button"]',
+    HTMLButtonElement
+  );
+  const archiveClearButton = requireElement(root, '[data-role="archive-clear-button"]', HTMLButtonElement);
+  const archiveHeroPayload = requireElement(root, '[data-role="archive-hero-payload"]', HTMLTextAreaElement);
+  const archiveLevelPayload = requireElement(root, '[data-role="archive-level-payload"]', HTMLTextAreaElement);
+  const archiveStatus = requireElement(root, '[data-role="archive-status"]', HTMLParagraphElement);
+  const archiveMessages = requireElement(root, '[data-role="archive-messages"]', HTMLUListElement);
+  const archiveOutput = requireElement(root, '[data-role="archive-output"]', HTMLTextAreaElement);
+
+  const editorViewRefs = {
+    toolPalette: editorToolPalette
+  };
+  const creatorViewRefs: CreatorViewRefs = {
+    seedInput: creatorSeedInput,
+    nameInput: creatorNameInput,
+    bargainOffer: creatorBargainOffer,
+    summary: creatorSummary,
+    stats: creatorStats,
+    storePages: creatorStorePages,
+    storeItems: creatorStoreItems,
+    status: creatorStatus,
+    messages: creatorMessages
+  };
+  const archiveViewRefs: ArchiveViewRefs = {
+    status: archiveStatus,
+    messages: archiveMessages
+  };
 
   for (const option of HERO_OPTIONS) {
     heroSelect.add(new Option(option.label, option.value));
@@ -395,6 +276,10 @@ export function mountApp(root: HTMLDivElement) {
 
   for (const option of LEVEL_OPTIONS) {
     levelSelect.add(new Option(option.label, option.value));
+  }
+
+  for (const example of ARCHIVE_EXAMPLES) {
+    archiveExampleSelect.add(new Option(example.label, example.id));
   }
 
   for (const option of EDITOR_TOOLS) {
@@ -450,13 +335,18 @@ export function mountApp(root: HTMLDivElement) {
   let saveStatusMessage = 'No run saved this session.';
   let importedHero: HeroState | null = null;
   let createdHero: HeroState | null = null;
+  let convertedHero: HeroState | null = null;
   let importedLevel: LevelDefinition | null = null;
   let authoredLevel: LevelDefinition | null = null;
+  let convertedLevel: LevelDefinition | null = null;
   let editorDraft: EditorDraft = createDefaultEditorDraft();
   let creatorDraft: CreatorDraft = createDefaultCreatorDraft(Number(creatorSeedInput.value) || 1984);
   let creatorStatusMessage = 'Roll a hero, spend points, buy gear, then launch.';
   let creatorStatusState: StatusState = 'idle';
   let creatorMessageRows: string[] = [];
+  let archiveStatusMessage = 'Load or paste archival payloads to inspect them.';
+  let archiveStatusState: StatusState = 'idle';
+  let archiveMessageRows: string[] = [];
   let appMessages: string[] = [];
 
   audio.setEnabled(sensoryPreferences.audioEnabled);
@@ -464,18 +354,33 @@ export function mountApp(root: HTMLDivElement) {
   function renderApp() {
     renderMode();
     renderSensoryControls();
-    renderCurrentGame();
-    renderEditor();
-    renderCreator();
+
+    if (mode === 'play') {
+      renderCurrentGame();
+    } else if (mode === 'editor') {
+      renderEditorView(editorRenderer, editorViewRefs, editorDraft);
+    } else if (mode === 'creator') {
+      renderCreatorView(
+        creatorViewRefs,
+        creatorDraft,
+        creatorStatusMessage,
+        creatorStatusState,
+        creatorMessageRows
+      );
+    } else {
+      renderArchiveView(archiveViewRefs, archiveStatusMessage, archiveStatusState, archiveMessageRows);
+    }
   }
 
   function renderMode() {
     playModePanel.hidden = mode !== 'play';
     editorModePanel.hidden = mode !== 'editor';
     creatorModePanel.hidden = mode !== 'creator';
+    archiveModePanel.hidden = mode !== 'archive';
     modePlayButton.setAttribute('aria-pressed', String(mode === 'play'));
     modeEditorButton.setAttribute('aria-pressed', String(mode === 'editor'));
     modeCreatorButton.setAttribute('aria-pressed', String(mode === 'creator'));
+    modeArchiveButton.setAttribute('aria-pressed', String(mode === 'archive'));
 
     if (mode === 'editor') {
       editorRenderer.resize();
@@ -519,14 +424,6 @@ export function mountApp(root: HTMLDivElement) {
     saveButton.disabled = snapshot.runStatus !== 'playing';
     resumeButton.disabled = loadRun() === null;
     renderOutcome(presentation, snapshot);
-  }
-
-  function renderEditor() {
-    editorRenderer.draw(editorDraft);
-
-    for (const button of editorToolPalette.querySelectorAll<HTMLButtonElement>('button[data-tool]')) {
-      button.setAttribute('aria-pressed', String(button.dataset.tool === editorDraft.selectedTool));
-    }
   }
 
   function renderRunPresentation(presentation: RunPresentation) {
@@ -603,70 +500,6 @@ export function mountApp(root: HTMLDivElement) {
     }
   }
 
-  function renderCreator() {
-    const classId = deriveClassId(creatorDraft.stats);
-
-    creatorSeedInput.value = String(creatorDraft.seed);
-    creatorNameInput.value = creatorDraft.name;
-    creatorBargainOffer.value = String(creatorDraft.bargainOffer);
-    creatorSummary.innerHTML = `
-      ${renderStat('CLASS', CLASS_LABELS[classId].toUpperCase())}
-      ${renderStat('GOLD', creatorDraft.gold)}
-      ${renderStat('POINTS', creatorDraft.modificationPoints)}
-      ${renderStat('SEED', creatorDraft.seed)}
-    `;
-    creatorStats.innerHTML = `
-      ${ADJUSTABLE_CREATOR_STAT_KEYS.map(
-        (stat) => `
-          <div class="stat-control">
-            <span>${escapeHtml(formatStatLabel(stat))}</span>
-            <button data-stat="${stat}" data-delta="-1" type="button" aria-label="Lower ${escapeHtml(formatStatLabel(stat))}">-</button>
-            <strong>${creatorDraft.stats[stat]}</strong>
-            <button data-stat="${stat}" data-delta="1" type="button" aria-label="Raise ${escapeHtml(formatStatLabel(stat))}">+</button>
-          </div>
-        `
-      ).join('')}
-      <div class="stat-control stat-control-locked">
-        <span>EXP</span>
-        <em>fixed</em>
-        <strong>${creatorDraft.stats.experience}</strong>
-      </div>
-    `;
-
-    for (const button of creatorStorePages.querySelectorAll<HTMLButtonElement>('button[data-store-page]')) {
-      button.setAttribute('aria-pressed', String(button.dataset.storePage === creatorDraft.selectedStorePage));
-    }
-
-    creatorStoreItems.innerHTML = itemsForCreatorPage(creatorDraft.selectedStorePage)
-      .map((item) => {
-        const owned = creatorDraft.inventorySlots[item.slot] ?? 0;
-        const allowed = item.allowedClasses.includes(classId);
-
-        return `
-          <article class="store-item" data-allowed="${String(allowed)}">
-            <div>
-              <strong>${escapeHtml(item.name)}</strong>
-              <span>Slot ${item.slot} - ${item.price} gold - value ${item.power}</span>
-            </div>
-            <div class="store-item-meta">
-              <span>${allowed ? 'Allowed' : `Not for ${CLASS_LABELS[classId]}`}</span>
-              <span>Owned ${owned}</span>
-            </div>
-            <div class="store-item-actions">
-              <button data-slot="${item.slot}" data-purchase-mode="fullPrice" type="button">Buy</button>
-              <button data-slot="${item.slot}" data-purchase-mode="bargain" type="button">Bargain</button>
-            </div>
-          </article>
-        `;
-      })
-      .join('');
-    creatorStatus.textContent = creatorStatusMessage;
-    creatorStatus.dataset.state = creatorStatusState;
-    creatorMessages.innerHTML = creatorMessageRows
-      .map((message) => `<li>${escapeHtml(message)}</li>`)
-      .join('');
-  }
-
   function buildNewGame() {
     const heroFixture = resolveSelectedHero();
     const levelFixture = resolveSelectedLevel();
@@ -685,6 +518,10 @@ export function mountApp(root: HTMLDivElement) {
       return structuredClone(createdHero);
     }
 
+    if (heroSelect.value === CONVERTED_HERO_VALUE && convertedHero) {
+      return structuredClone(convertedHero);
+    }
+
     const hero = heroFixtures[heroSelect.value as keyof typeof heroFixtures];
 
     if (!hero) {
@@ -701,6 +538,10 @@ export function mountApp(root: HTMLDivElement) {
 
     if (levelSelect.value === AUTHORED_LEVEL_VALUE && authoredLevel) {
       return structuredClone(authoredLevel);
+    }
+
+    if (levelSelect.value === CONVERTED_LEVEL_VALUE && convertedLevel) {
+      return structuredClone(convertedLevel);
     }
 
     const level = levelFixtures[levelSelect.value as keyof typeof levelFixtures];
@@ -1157,6 +998,115 @@ export function mountApp(root: HTMLDivElement) {
     renderApp();
   }
 
+  function loadArchiveExample() {
+    const example = archiveExampleById(archiveExampleSelect.value);
+
+    if (!example) {
+      setArchiveStatus('Archive example is not available.', 'error');
+      renderApp();
+      return;
+    }
+
+    archiveHeroPayload.value = example.heroPayload;
+    archiveLevelPayload.value = example.levelPayload;
+    archiveOutput.value = '';
+    setArchiveStatus(`Loaded example: ${example.label}.`, 'success', [
+      { severity: 'info', message: example.description }
+    ]);
+    renderApp();
+  }
+
+  function inspectArchiveHero() {
+    showArchiveReport(inspectLegacyHero(archiveHeroPayload.value));
+  }
+
+  function inspectArchiveLevel() {
+    showArchiveReport(inspectLegacyLevel(archiveLevelPayload.value));
+  }
+
+  function roundTripArchiveHero() {
+    const report = roundTripLegacyHero(archiveHeroPayload.value);
+
+    archiveOutput.value = report.roundTripText ?? formatLegacyReport(report);
+    setArchiveStatusFromReport(report, 'HERO round-trip complete.');
+    renderApp();
+  }
+
+  function roundTripArchiveLevel() {
+    const report = roundTripLegacyLevel(archiveLevelPayload.value);
+
+    archiveOutput.value = report.roundTripText ?? formatLegacyReport(report);
+    setArchiveStatusFromReport(report, 'LEVEL round-trip complete.');
+    renderApp();
+  }
+
+  function inspectArchiveSnapshotPair() {
+    showArchiveReport(
+      inspectLegacySnapshotPair({
+        heroPayload: archiveHeroPayload.value,
+        levelPayload: archiveLevelPayload.value
+      })
+    );
+  }
+
+  function convertArchiveSnapshotPair() {
+    try {
+      const conversion = convertLegacySnapshotToRun(
+        {
+          heroPayload: archiveHeroPayload.value,
+          levelPayload: archiveLevelPayload.value
+        },
+        Number(seedInput.value) || 1984
+      );
+
+      convertedHero = structuredClone(conversion.run.hero);
+      convertedLevel = structuredClone(conversion.run.level);
+      ensureOption(heroSelect, CONVERTED_HERO_VALUE, 'Converted Legacy Hero');
+      ensureOption(levelSelect, CONVERTED_LEVEL_VALUE, 'Converted Legacy Snapshot');
+      heroSelect.value = CONVERTED_HERO_VALUE;
+      levelSelect.value = CONVERTED_LEVEL_VALUE;
+      game = Game.fromSerializedRun(conversion.run);
+      mode = 'play';
+      lastChangedCells = [];
+      lastEffectKind = 'idle';
+      lastEffectStartedAtMs = uiClockMs;
+      saveStatusMessage = 'Converted legacy snapshot. Save Run to persist.';
+      spellChooser.hidden = true;
+      archiveOutput.value = formatLegacyReport(
+        inspectLegacySnapshotPair({
+          heroPayload: archiveHeroPayload.value,
+          levelPayload: archiveLevelPayload.value
+        })
+      );
+      setArchiveStatus('Converted legacy snapshot into a modern run.', 'success', conversion.diagnostics);
+      pushAppMessage('Converted legacy snapshot.');
+      renderApp();
+    } catch (error) {
+      setArchiveStatus(getErrorMessage(error), 'error');
+      renderApp();
+    }
+  }
+
+  function clearArchive() {
+    archiveHeroPayload.value = '';
+    archiveLevelPayload.value = '';
+    archiveOutput.value = '';
+    setArchiveStatus('Archive payloads cleared.', 'idle');
+    renderApp();
+  }
+
+  function showArchiveReport(report: LegacyPayloadReport) {
+    archiveOutput.value = formatLegacyReport(report);
+    setArchiveStatusFromReport(report, `${report.kind.toUpperCase()} inspection complete.`);
+    renderApp();
+  }
+
+  function setArchiveStatusFromReport(report: LegacyPayloadReport, successMessage: string) {
+    const hasError = report.diagnostics.some((entry) => entry.severity === 'error');
+
+    setArchiveStatus(hasError ? 'Archive report contains errors.' : successMessage, hasError ? 'error' : 'success', report.diagnostics);
+  }
+
   function setLegacyStatus(message: string, state: StatusState) {
     legacyStatus.textContent = message;
     legacyStatus.dataset.state = state;
@@ -1200,6 +1150,15 @@ export function mountApp(root: HTMLDivElement) {
     }
   }
 
+  function setArchiveStatus(message: string, state: StatusState, diagnostics: LegacyDiagnostic[] = []) {
+    archiveStatusMessage = message;
+    archiveStatusState = state;
+    archiveMessageRows =
+      diagnostics.length > 0
+        ? diagnostics.map((entry) => `${entry.severity.toUpperCase()}: ${entry.message}`)
+        : [message];
+  }
+
   function pushAppMessage(message: string) {
     appMessages = [...appMessages, message].slice(-4);
   }
@@ -1220,6 +1179,9 @@ export function mountApp(root: HTMLDivElement) {
   });
   modeCreatorButton.addEventListener('click', () => {
     setMode('creator');
+  });
+  modeArchiveButton.addEventListener('click', () => {
+    setMode('archive');
   });
   soundToggle.addEventListener('click', () => {
     toggleAudioPreference();
@@ -1364,6 +1326,30 @@ export function mountApp(root: HTMLDivElement) {
   });
   creatorClearOutputButton.addEventListener('click', () => {
     clearCreatorOutput();
+  });
+  archiveLoadExampleButton.addEventListener('click', () => {
+    loadArchiveExample();
+  });
+  archiveInspectHeroButton.addEventListener('click', () => {
+    inspectArchiveHero();
+  });
+  archiveInspectLevelButton.addEventListener('click', () => {
+    inspectArchiveLevel();
+  });
+  archiveRoundTripHeroButton.addEventListener('click', () => {
+    roundTripArchiveHero();
+  });
+  archiveRoundTripLevelButton.addEventListener('click', () => {
+    roundTripArchiveLevel();
+  });
+  archiveInspectSnapshotButton.addEventListener('click', () => {
+    inspectArchiveSnapshotPair();
+  });
+  archiveConvertSnapshotButton.addEventListener('click', () => {
+    convertArchiveSnapshotPair();
+  });
+  archiveClearButton.addEventListener('click', () => {
+    clearArchive();
   });
 
   let editorPointerDown = false;
@@ -1579,40 +1565,6 @@ function renderGameToText(
   });
 }
 
-function formatStatLabel(stat: CreatorStatKey) {
-  switch (stat) {
-    case 'strength':
-      return 'STR';
-    case 'vitality':
-      return 'VIT';
-    case 'agility':
-      return 'AGI';
-    case 'intelligence':
-      return 'INT';
-    case 'experience':
-      return 'EXP';
-    case 'luck':
-      return 'LUC';
-    case 'aura':
-      return 'AUR';
-    case 'morality':
-      return 'MOR';
-  }
-}
-
-function renderStat(label: string, value: string | number) {
-  return `<div class="hud-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Operation failed.';
 }
@@ -1623,18 +1575,4 @@ function isFormEditingTarget(target: EventTarget | null) {
   }
 
   return ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName);
-}
-
-function requireElement<T extends HTMLElement>(
-  root: ParentNode,
-  selector: string,
-  constructor: new (...args: never[]) => T
-): T {
-  const element = root.querySelector(selector);
-
-  if (!(element instanceof constructor)) {
-    throw new Error(`App UI failed to initialize: ${selector}`);
-  }
-
-  return element;
 }

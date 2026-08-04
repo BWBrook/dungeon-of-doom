@@ -6,18 +6,10 @@ import {
   defaultSensoryPreferences,
   loadSensoryPreferences,
   parseSensoryPreferences,
-  saveSensoryPreferences,
-  sensoryPreferencesStorageKey
+  saveSensoryPreferences
 } from '../ui/sensoryPreferences';
 import { effectIntensity, visualEffectState } from '../ui/visualEffects';
-import {
-  EFFECT_COLORS,
-  HERO_GLYPHS,
-  TILE_COLORS,
-  TILE_GLYPHS,
-  TILE_VISUALS,
-  VISUAL_EFFECTS
-} from '../ui/visualCatalog';
+import { EFFECT_COLORS, HERO_GLYPHS, TILE_VISUALS, VISUAL_EFFECTS } from '../ui/visualCatalog';
 
 const BASE_TILE_KINDS: BaseTileKind[] = [
   'floor',
@@ -50,8 +42,8 @@ const SOUND_CUES: SoundCue[] = [
 describe('visual identity catalog', () => {
   test('covers every base tile and facing glyph', () => {
     for (const tile of BASE_TILE_KINDS) {
-      expect(TILE_VISUALS[tile].glyph).toBe(TILE_GLYPHS[tile]);
-      expect(TILE_VISUALS[tile].lit).toBe(TILE_COLORS[tile]);
+      expect(TILE_VISUALS[tile].glyph.length).toBeGreaterThan(0);
+      expect(TILE_VISUALS[tile].lit.length).toBeGreaterThan(0);
       expect(TILE_VISUALS[tile].ink.length).toBeGreaterThan(0);
     }
 
@@ -93,7 +85,7 @@ describe('sensory preferences', () => {
     expect(parseSensoryPreferences('not-json', fallback)).toEqual(fallback);
     saveSensoryPreferences({ audioEnabled: false, motionEnabled: false }, storage);
     expect(loadSensoryPreferences(storage)).toEqual({ audioEnabled: false, motionEnabled: false });
-    expect(storage.getItem(sensoryPreferencesStorageKey())).toContain('audioEnabled');
+    expect(storage.getItem('dungeon-of-doom.sensory-preferences.v1')).toContain('audioEnabled');
   });
 });
 
@@ -144,4 +136,3 @@ function createMemoryStorage(): Storage {
     }
   };
 }
-

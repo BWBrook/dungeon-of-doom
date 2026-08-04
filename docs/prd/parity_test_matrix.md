@@ -7,6 +7,11 @@ The coding phase should begin with fixtures and golden tests, not ad hoc play.
 This matrix defines the minimum behavior that must be pinned down before the
 renderer becomes more than a thin shell.
 
+Status: active behavior inventory. The rows describe distinct rules and
+failure classes; they do not require one test function per row. Pure engine
+and codec tests are the fast change gate, while the browser suite covers the
+small number of end-to-end mode transitions.
+
 ## Test Suites
 
 - codec tests
@@ -237,6 +242,12 @@ These are post-engine tests.
 
 - Create a hero in the creator
 - Launch play mode directly from it
+
+### B005 Archive Conversion
+
+- Load or paste legacy HERO/LEVEL payloads in Archive mode
+- Inspect or round-trip without mutating Play state
+- Convert a legacy snapshot pair into a modern run explicitly
 
 ## Suggested Early Fixtures
 

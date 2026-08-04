@@ -9,7 +9,6 @@ import {
   MESSAGE_TEXT,
   clonePoint,
   computeSpellChargesFromInventory,
-  createEmptySpellCharges,
   isLegacyMonsterCode,
   isSpellAvailableFromInventory,
   legacyCodeToTileKind,
@@ -877,70 +876,4 @@ export function createHeroFromLegacyLoad(hero: HeroState): HeroState {
   loadedHero.status.escaped = false;
 
   return loadedHero;
-}
-
-export function createEmptyHero(): HeroState {
-  return {
-    name: 'Hero',
-    displayLabel: 'Hero -wanderer',
-    classId: 'wanderer',
-    stats: {
-      strength: 5,
-      vitality: 5,
-      agility: 5,
-      intelligence: 5,
-      experience: 1,
-      luck: 5,
-      aura: 1,
-      morality: 5
-    },
-    baseStats: {
-      strength: 5,
-      vitality: 5,
-      agility: 5,
-      intelligence: 5,
-      experience: 1,
-      luck: 5,
-      aura: 1,
-      morality: 5
-    },
-    gold: 0,
-    treasure: 0,
-    facing: 'N',
-    position: { x: 0, y: 0 },
-    inventorySlots: {
-      1: 0,
-      2: 0,
-      3: 0,
-      4: 0,
-      5: 0,
-      6: 0,
-      7: 0,
-      8: 0,
-      9: 0,
-      10: 0,
-      11: 0,
-      12: 0,
-      13: 0,
-      14: 0,
-      15: 0,
-      16: 0,
-      17: 0,
-      18: 0,
-      19: 0,
-      20: 0,
-      21: 0,
-      22: 0,
-      23: 0,
-      24: 0
-    },
-    spellCharges: createEmptySpellCharges(),
-    lightUses: 0,
-    status: {
-      trapped: false,
-      won: false,
-      dead: false,
-      escaped: false
-    }
-  };
 }

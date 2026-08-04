@@ -11,7 +11,7 @@ import {
 } from '../editor/model';
 import type { EditorDraft } from '../editor/model';
 import { formatLevelString, parseLevelString } from '../persist/legacy';
-import { formatLevelDocument, parseLevelDocument } from '../persist/levelDocument';
+import { formatLevelDocument } from '../persist/levelDocument';
 
 const BASE_TILES: BaseTileKind[] = [
   'floor',
@@ -125,9 +125,15 @@ describe('dungeon editor model', () => {
   it('round-trips modern level documents and legacy level exports', () => {
     const draft = withIdolAndMonster(createDefaultEditorDraft());
     const level = levelFromEditorDraft(draft);
-    const document = parseLevelDocument(formatLevelDocument(level));
+    const document = JSON.parse(formatLevelDocument(level)) as {
+      kind: string;
+      version: number;
+      level: typeof level;
+    };
     const legacyLevel = parseLevelString(formatLevelString(level));
 
+    expect(document.kind).toBe('dungeon-of-doom.level');
+    expect(document.version).toBe(1);
     expect(document.level).toEqual(level);
     expect(legacyLevel.startPosition).toEqual(level.startPosition);
     expect(legacyLevel.monsterSpawns[0]?.legacyTileCode).toBe(LEGACY_CODES.monster1);

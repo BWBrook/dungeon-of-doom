@@ -7,11 +7,12 @@ microcomputer feel of the original game while replacing cassette-era workflow
 and opaque implementation quirks with a deterministic engine, modern save/load,
 and integrated tooling.
 
-The product is one game with three connected modes:
+The product is one game with four connected modes:
 
 - Play mode
 - Dungeon editor
 - Character creator
+- Archive workbench
 
 Delivery order matters:
 
@@ -20,7 +21,9 @@ Delivery order matters:
 3. Character creator
 
 Legacy import/export for archival hero and level formats is an explicit product
-feature, not an implementation constraint on the core runtime.
+feature. The quick import/export bridge belongs to Play mode; the Archive
+workbench is an optional owner-facing archaeology tool, not an implementation
+constraint on the core runtime.
 
 ## Product Vision
 
@@ -104,6 +107,12 @@ Core capabilities:
 - buy items through the original item/class restrictions
 - export to modern JSON and legacy hero format
 - launch play mode directly from the created hero
+
+### Mode 4: Archive Workbench
+
+The Archive workbench is intentionally separate from runtime persistence. It
+can inspect and round-trip packed HERO/LEVEL payloads and convert a legacy
+mid-game pair into a modern run with explicit loss warnings.
 
 ## UX Principles
 
@@ -193,6 +202,19 @@ Acceptance:
 
 - a player can create a hero and a level entirely inside the web app, then play
   them immediately
+
+### M5-M7: Playability And Archival Surfaces
+
+Deliverables:
+
+- Play command feedback, outcomes, and lightweight sensory identity
+- Archive diagnostics and lossy legacy snapshot conversion
+
+Acceptance:
+
+- the active Play, Editor, Creator, and Archive surfaces remain usable through
+  one static browser application, with modern run JSON as the only runtime save
+  model
 
 ## Success Criteria
 

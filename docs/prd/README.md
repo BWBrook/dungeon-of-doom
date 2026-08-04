@@ -7,7 +7,7 @@ It exists to keep the next phase grounded in a stable source of truth instead
 of relying on long brainstorming notes, imperfect transcript summaries, or
 literal BASIC structure.
 
-Status: pre-application-code
+Status: active implementation reference
 
 Reading order:
 
@@ -17,13 +17,17 @@ Reading order:
 4. `legacy_formats.md`
 5. `parity_test_matrix.md`
 
+The application now has a working Play, Editor, Creator, and Archive surface;
+the package remains the source of product and mechanics decisions rather than
+a historical milestone ledger.
+
 Package goals:
 
 - define the product shape before scaffolding
 - lock canon and errata before porting behavior
 - define the engine as the primary implementation target
 - keep legacy BASIC save formats at the import/export boundary
-- make the eventual coding phase test-first and deterministic
+- keep the active coding phase test-first, deterministic, and proportionate
 
 Related material:
 

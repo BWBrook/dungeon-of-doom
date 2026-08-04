@@ -20,7 +20,3 @@ export function loadRun(): SerializedRun | null {
     return null;
   }
 }
-
-export function clearRun(): void {
-  localStorage.removeItem(SAVE_KEY);
-}

@@ -12,7 +12,7 @@ import type { CreatorDraft } from '../creator/model';
 import { DEFAULT_LIGHT_USES, createEmptyInventorySlots } from '../engine/catalog';
 import type { Stats } from '../engine/types';
 import { formatHeroString, parseHeroString } from '../persist/legacy';
-import { formatHeroDocument, parseHeroDocument } from '../persist/heroDocument';
+import { formatHeroDocument } from '../persist/heroDocument';
 
 function withStats(draft: CreatorDraft, stats: Partial<Stats>): CreatorDraft {
   return {
@@ -160,7 +160,11 @@ describe('character creator model', () => {
       inventorySlots
     };
     const hero = heroFromCreatorDraft(draft);
-    const modernDocument = parseHeroDocument(formatHeroDocument(hero));
+    const modernDocument = JSON.parse(formatHeroDocument(hero)) as {
+      kind: string;
+      version: number;
+      hero: typeof hero;
+    };
     const legacyHero = parseHeroString(formatHeroString(hero));
 
     expect(hero.baseStats).toEqual(hero.stats);
@@ -168,6 +172,8 @@ describe('character creator model', () => {
     expect(hero.lightUses).toBe(DEFAULT_LIGHT_USES);
     expect(hero.spellCharges[1]).toBe(20);
     expect(hero.spellCharges[4]).toBe(15);
+    expect(modernDocument.kind).toBe('dungeon-of-doom.hero');
+    expect(modernDocument.version).toBe(1);
     expect(modernDocument.hero).toEqual(hero);
     expect(legacyHero.displayLabel).toBe(hero.displayLabel);
   });

@@ -49,10 +49,6 @@ export function saveSensoryPreferences(
   storage?.setItem(STORAGE_KEY, JSON.stringify(preferences));
 }
 
-export function sensoryPreferencesStorageKey(): string {
-  return STORAGE_KEY;
-}
-
 function isPreferenceRecord(value: unknown): value is SensoryPreferences {
   return (
     typeof value === 'object' &&
@@ -63,4 +59,3 @@ function isPreferenceRecord(value: unknown): value is SensoryPreferences {
     typeof value.motionEnabled === 'boolean'
   );
 }
-

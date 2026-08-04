@@ -1,34 +1,13 @@
-Original prompt: PLEASE IMPLEMENT THIS PLAN: M4B Plan: Character Creator
+# Current State
 
-## Progress
+Dungeon of Doom is a private Vite + vanilla TypeScript + Canvas 2D browser
+game. The active product surfaces are Play, Editor, Creator, and Archive.
 
-- Starting M4B from clean `main` at dungeon-editor checkpoint.
-- Creator will follow the existing pure-model-first pattern used by the editor.
-- Added pure creator model skeleton plus modern hero document persistence.
-- Added creator model tests and confirmed the current Vitest suite is green.
-- Wired Creator as a third app mode with rolling, stat edits, shop purchases, exports, and launch-to-play state.
-- Added Playwright coverage for creator export/play, invalid names, forbidden buys, stacking, and mode switching.
-- Acceptance is green: `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:browser`.
-- Manual smoke covered Creator export, legacy HERO export, Play Created Hero, save, resume, and visual layout screenshots.
+The engine is deterministic and owns game rules; modern JSON is the runtime
+save model; legacy HERO/LEVEL strings remain an explicit import/export and
+archaeology boundary. The current cleanup work is focused on keeping the app
+shell small, the active specification truthful, and verification proportional
+to a single-owner project.
 
-## Next Suggestions
-
-- M5 can start from a full in-app authoring loop: legacy interop, dungeon editor, and character creator all now feed Play mode.
-- A later polish pass could tighten shop row wrapping and add a compact store-table variant for small screens.
-
-## M5 Progress
-
-- Starting Run/Adventure Polish from clean `main` at `9b193a5 Add character creator`.
-- Scope is Play mode presentation, command clarity, outcome panels, renderer feedback, and browser playtest hooks; no mechanics changes intended.
-- Added pure run presentation helper and unit coverage; targeted Vitest pass is green.
-- Wired the Play mode command surface, spell chooser, outcome panel, save/resume status, renderer effect inputs, and browser playtest hooks; `pnpm typecheck` is green after integration.
-- Expanded browser coverage for command buttons, `C` conjure, exit-gate feedback, outcome panels, save/resume status, and `render_game_to_text`; Vitest and Playwright are green.
-- Manual smoke used the shared web-game helper plus desktop/narrow Play mode screenshots; layout remains playable and command feedback is visible.
-
-## M6 Progress
-
-- Starting Visual and Audio Identity from clean `main` at `49da96b Polish run adventure loop`.
-- Locked direction is Lamp-lit Terminal with generated cue polish plus sound/motion toggles; no mechanics, save, codec, editor, or creator behavior changes intended.
-- Added shared visual catalog expansion, pure visual-effect timing, sensory preference storage, richer generated audio cue profiles, and browser text hook extensions.
-- Acceptance is green: `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:browser`.
-- Manual/browser smoke used the shared web-game helper plus desktop/narrow screenshots for Play and Editor; tile readability, active monster clarity, sensory toggles, and narrow layout all checked visually.
+Primary checks from `src/web` are `pnpm typecheck`, `pnpm lint`, `pnpm test`,
+`pnpm build`, and the Playwright browser smoke suite.

@@ -10,8 +10,6 @@ import {
   parseHeroString,
   parseLevelString
 } from '../src/persist/legacy';
-import { parseHeroDocument } from '../src/persist/heroDocument';
-import { parseLevelDocument } from '../src/persist/levelDocument';
 
 async function resetPage(page: Page) {
   await page.goto('/');
@@ -27,6 +25,11 @@ async function openEditor(page: Page) {
 async function openCreator(page: Page) {
   await page.getByRole('button', { name: 'Creator' }).click();
   await expect(page.locator('[data-role="creator-mode"]')).toBeVisible();
+}
+
+async function openArchive(page: Page) {
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await expect(page.locator('[data-role="archive-mode"]')).toBeVisible();
 }
 
 async function chooseEditorTool(page: Page, name: string) {
@@ -166,7 +169,9 @@ test('persists sensory toggles and reports them for browser playtests', async ({
 
   await page.reload();
 
-  const afterReload = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+  const afterReload = JSON.parse(
+    await page.evaluate(() => window.render_game_to_text?.() ?? '{}')
+  ) as {
     sensory: { audioEnabled: boolean; motionEnabled: boolean };
   };
 
@@ -189,18 +194,14 @@ test('imports legacy hero and level payloads, starts a run, and exports them aga
   const heroPayload = formatHeroString(clericStarter);
   const levelPayload = formatLevelString(createLegacyFriendlyLevelFixture());
 
-  await page.getByLabel('Hero Payload').fill(heroPayload);
+  await page.locator('[data-role="hero-payload"]').fill(heroPayload);
   await page.getByRole('button', { name: 'Import Hero' }).click();
-  await expect(page.locator('[data-role="hero-select"]')).toHaveValue(
-    '__imported_legacy_hero__'
-  );
+  await expect(page.locator('[data-role="hero-select"]')).toHaveValue('__imported_legacy_hero__');
   await expect(page.locator('[data-role="legacy-status"]')).toContainText('Imported hero');
 
-  await page.getByLabel('Level Payload').fill(levelPayload);
+  await page.locator('[data-role="level-payload"]').fill(levelPayload);
   await page.getByRole('button', { name: 'Import Level' }).click();
-  await expect(page.locator('[data-role="level-select"]')).toHaveValue(
-    '__imported_legacy_level__'
-  );
+  await expect(page.locator('[data-role="level-select"]')).toHaveValue('__imported_legacy_level__');
   await expect(page.locator('[data-role="legacy-status"]')).toContainText('Imported level');
 
   await page.getByRole('button', { name: 'Start Run' }).click();
@@ -209,12 +210,12 @@ test('imports legacy hero and level payloads, starts a run, and exports them aga
   );
 
   await page.getByRole('button', { name: 'Export Hero' }).click();
-  const exportedHero = await page.getByLabel('Hero Payload').inputValue();
+  const exportedHero = await page.locator('[data-role="hero-payload"]').inputValue();
 
   expect(parseHeroString(exportedHero).displayLabel).toBe(clericStarter.displayLabel);
 
   await page.getByRole('button', { name: 'Export Level' }).click();
-  const exportedLevel = await page.getByLabel('Level Payload').inputValue();
+  const exportedLevel = await page.locator('[data-role="level-payload"]').inputValue();
 
   expect(parseLevelString(exportedLevel).startPosition).toEqual({ x: 0, y: 0 });
 });
@@ -237,7 +238,7 @@ test('opens conjure with C and casts from the spell chooser', async ({ page }) =
 test('shows legacy import errors without adding imported options', async ({ page }) => {
   await resetPage(page);
 
-  await page.getByLabel('Hero Payload').fill('bad');
+  await page.locator('[data-role="hero-payload"]').fill('bad');
   await page.getByRole('button', { name: 'Import Hero' }).click();
 
   await expect(page.locator('[data-role="legacy-status"]')).toContainText(
@@ -247,6 +248,99 @@ test('shows legacy import errors without adding imported options', async ({ page
   await expect(
     page.locator('[data-role="hero-select"] option', { hasText: 'Imported Legacy Hero' })
   ).toHaveCount(0);
+});
+
+test('inspects bundled archive HERO and LEVEL examples', async ({ page }) => {
+  await resetPage(page);
+  await openArchive(page);
+
+  await page.locator('[data-role="archive-example-select"]').selectOption('starter-hero');
+  await page.getByRole('button', { name: 'Load Example' }).click();
+  await page.getByRole('button', { name: 'Inspect Hero' }).click();
+  await expect(page.locator('[data-role="archive-status"]')).toContainText(
+    'HERO inspection complete.'
+  );
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/Legacy HERO Report/);
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/Display label:/);
+
+  await page.locator('[data-role="archive-example-select"]').selectOption('authored-level');
+  await page.getByRole('button', { name: 'Load Example' }).click();
+  await page.getByRole('button', { name: 'Inspect Level' }).click();
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/Legacy LEVEL Report/);
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/Metadata coordinates:/);
+});
+
+test('round-trips archive examples into parseable raw payload output', async ({ page }) => {
+  await resetPage(page);
+  await openArchive(page);
+
+  await page.locator('[data-role="archive-example-select"]').selectOption('starter-hero');
+  await page.getByRole('button', { name: 'Load Example' }).click();
+  await page.getByRole('button', { name: 'Round-Trip Hero' }).click();
+  const heroOutput = await page.locator('[data-role="archive-output"]').inputValue();
+
+  expect(parseHeroString(heroOutput).displayLabel).toContain('Rogan');
+
+  await page.locator('[data-role="archive-example-select"]').selectOption('record-chunked-level');
+  await page.getByRole('button', { name: 'Load Example' }).click();
+  await page.getByRole('button', { name: 'Round-Trip Level' }).click();
+  const levelOutput = await page.locator('[data-role="archive-output"]').inputValue();
+
+  expect(parseLevelString(levelOutput).cells).toHaveLength(225);
+});
+
+test('converts an archive snapshot pair into a modern playable run', async ({ page }) => {
+  await resetPage(page);
+  await openArchive(page);
+
+  await page.locator('[data-role="archive-example-select"]').selectOption('snapshot-pair');
+  await page.getByRole('button', { name: 'Load Example' }).click();
+  await page.getByRole('button', { name: 'Inspect Snapshot Pair' }).click();
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/Legacy SNAPSHOT Report/);
+  await expect(page.locator('[data-role="archive-output"]')).toHaveValue(/lossy/);
+
+  await page.getByRole('button', { name: 'Convert Snapshot To Run' }).click();
+  await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
+  await expect(page.locator('[data-role="level-select"]')).toHaveValue(
+    '__converted_legacy_snapshot_level__'
+  );
+  await expect(page.locator('[data-role="save-status"]')).toContainText(
+    'Converted legacy snapshot'
+  );
+
+  const textState = JSON.parse(
+    await page.evaluate(() => window.render_game_to_text?.() ?? '{}')
+  ) as {
+    hero: { position: { x: number; y: number } };
+    runStatus: string;
+  };
+
+  expect(textState.runStatus).toBe('playing');
+  expect(textState.hero.position).toEqual({ x: 7, y: 6 });
+});
+
+test('archive errors do not mutate the active play run', async ({ page }) => {
+  await resetPage(page);
+
+  await page.getByRole('button', { name: 'Start Run' }).click();
+
+  const before = await page.evaluate(() => window.render_game_to_text?.() ?? '');
+
+  await openArchive(page);
+  await page.locator('[data-role="archive-hero-payload"]').fill('bad');
+  await page.getByRole('button', { name: 'Inspect Hero' }).click();
+  await expect(page.locator('[data-role="archive-status"]')).toContainText(
+    'Archive report contains errors.'
+  );
+  await expect(
+    page.locator('[data-role="level-select"] option', { hasText: 'Converted Legacy Snapshot' })
+  ).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+
+  const after = await page.evaluate(() => window.render_game_to_text?.() ?? '');
+
+  expect(JSON.parse(after).hero.position).toEqual(JSON.parse(before).hero.position);
 });
 
 test('can win immediately on the idol fixture', async ({ page }) => {
@@ -268,7 +362,7 @@ test('can win immediately on the idol fixture', async ({ page }) => {
 test('shows exit gating feedback in the polished play shell', async ({ page }) => {
   await resetPage(page);
 
-  await page.getByLabel('Level Payload').fill(formatLevelString(createExitGateLevel()));
+  await page.locator('[data-role="level-payload"]').fill(formatLevelString(createExitGateLevel()));
   await page.getByRole('button', { name: 'Import Level' }).click();
   await page.getByRole('button', { name: 'Start Run' }).click();
   await clickCommand(page, 'moveForward');
@@ -302,9 +396,7 @@ test('paints an editor level, validates it, and launches play from the authored 
 
   await page.getByRole('button', { name: 'Play Authored Level' }).click();
   await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
-  await expect(page.locator('[data-role="level-select"]')).toHaveValue(
-    '__authored_editor_level__'
-  );
+  await expect(page.locator('[data-role="level-select"]')).toHaveValue('__authored_editor_level__');
   await expect(page.locator('.hud-row').filter({ hasText: 'RUN' }).locator('dd')).toContainText(
     'PLAYING'
   );
@@ -322,7 +414,15 @@ test('exports editor levels as modern JSON and legacy level payloads', async ({ 
   await page.getByRole('button', { name: 'Export JSON' }).click();
   const jsonOutput = await page.locator('[data-role="editor-output"]').inputValue();
 
-  expect(parseLevelDocument(jsonOutput).level.startPosition).toEqual({ x: 7, y: 7 });
+  const levelDocument = JSON.parse(jsonOutput) as {
+    kind: string;
+    version: number;
+    level: LevelDefinition;
+  };
+
+  expect(levelDocument.kind).toBe('dungeon-of-doom.level');
+  expect(levelDocument.version).toBe(1);
+  expect(levelDocument.level.startPosition).toEqual({ x: 7, y: 7 });
 
   await page.getByRole('button', { name: 'Export Legacy Level' }).click();
   const legacyOutput = await page.locator('[data-role="editor-output"]').inputValue();
@@ -359,11 +459,9 @@ test('loads an imported legacy level into the editor and exports it again', asyn
 
   const levelPayload = formatLevelString(createLegacyFriendlyLevelFixture());
 
-  await page.getByLabel('Level Payload').fill(levelPayload);
+  await page.locator('[data-role="level-payload"]').fill(levelPayload);
   await page.getByRole('button', { name: 'Import Level' }).click();
-  await expect(page.locator('[data-role="level-select"]')).toHaveValue(
-    '__imported_legacy_level__'
-  );
+  await expect(page.locator('[data-role="level-select"]')).toHaveValue('__imported_legacy_level__');
 
   await openEditor(page);
   await page.getByRole('button', { name: 'Edit Selected Level' }).click();
@@ -400,7 +498,15 @@ test('creates a hero, exports modern and legacy payloads, and launches play', as
   await page.getByRole('button', { name: 'Export JSON' }).click();
   const jsonOutput = await page.locator('[data-role="creator-output"]').inputValue();
 
-  expect(parseHeroDocument(jsonOutput).hero.name).toBe('Mira');
+  const heroDocument = JSON.parse(jsonOutput) as {
+    kind: string;
+    version: number;
+    hero: { name: string };
+  };
+
+  expect(heroDocument.kind).toBe('dungeon-of-doom.hero');
+  expect(heroDocument.version).toBe(1);
+  expect(heroDocument.hero.name).toBe('Mira');
 
   await page.getByRole('button', { name: 'Export Legacy Hero' }).click();
   const legacyOutput = await page.locator('[data-role="creator-output"]').inputValue();
@@ -409,9 +515,7 @@ test('creates a hero, exports modern and legacy payloads, and launches play', as
 
   await page.getByRole('button', { name: 'Play Created Hero' }).click();
   await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
-  await expect(page.locator('[data-role="hero-select"]')).toHaveValue(
-    '__created_creator_hero__'
-  );
+  await expect(page.locator('[data-role="hero-select"]')).toHaveValue('__created_creator_hero__');
   await expect(page.locator('.hud-row').filter({ hasText: 'RUN' }).locator('dd')).toContainText(
     'PLAYING'
   );
@@ -478,4 +582,6 @@ test('keeps the upgraded shell usable on a narrow viewport', async ({ page }) =>
   await expect(page.locator('[data-role="editor-canvas"]')).toBeVisible();
   await page.getByRole('button', { name: 'Creator' }).click();
   await expect(page.getByRole('button', { name: 'Roll Hero' })).toBeVisible();
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await expect(page.getByRole('button', { name: 'Inspect Hero' })).toBeVisible();
 });

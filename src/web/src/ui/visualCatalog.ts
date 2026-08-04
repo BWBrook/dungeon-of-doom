@@ -114,30 +114,6 @@ export const HERO_GLYPHS: Record<Facing, string> = {
   W: '<'
 };
 
-export const TILE_COLORS: Record<BaseTileKind, string> = {
-  floor: TILE_VISUALS.floor.lit,
-  wall: TILE_VISUALS.wall.lit,
-  vase: TILE_VISUALS.vase.lit,
-  chest: TILE_VISUALS.chest.lit,
-  idol: TILE_VISUALS.idol.lit,
-  entrance: TILE_VISUALS.entrance.lit,
-  exit: TILE_VISUALS.exit.lit,
-  trap: TILE_VISUALS.trap.lit,
-  safe: TILE_VISUALS.safe.lit
-};
-
-export const TILE_GLYPHS: Record<BaseTileKind, string> = {
-  floor: TILE_VISUALS.floor.glyph,
-  wall: TILE_VISUALS.wall.glyph,
-  vase: TILE_VISUALS.vase.glyph,
-  chest: TILE_VISUALS.chest.glyph,
-  idol: TILE_VISUALS.idol.glyph,
-  entrance: TILE_VISUALS.entrance.glyph,
-  exit: TILE_VISUALS.exit.glyph,
-  trap: TILE_VISUALS.trap.glyph,
-  safe: TILE_VISUALS.safe.glyph
-};
-
 export const MONSTER_VISUALS = {
   dormant: {
     glyph: 'm',

@@ -8,7 +8,7 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'pnpm exec vite --host 127.0.0.1 --port 4173',
+    command: './node_modules/.bin/vite --host 127.0.0.1 --port 4173',
     port: 4173,
     reuseExistingServer: !process.env.CI
   },

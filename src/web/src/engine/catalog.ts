@@ -216,20 +216,6 @@ export function monsterStepSizeFromLegacyCode(legacyCode: number): number {
   return Math.max(1, rawStep);
 }
 
-export function spellSlotsForSource(hasNecronomicon: boolean, hasScrolls: boolean): SpellSlot[] {
-  const slots: SpellSlot[] = [];
-
-  if (hasNecronomicon) {
-    slots.push(1, 2, 3);
-  }
-
-  if (hasScrolls) {
-    slots.push(4, 5, 6);
-  }
-
-  return slots;
-}
-
 export function isSpellAvailableFromInventory(hero: HeroState, slot: SpellSlot): boolean {
   if (hero.stats.aura <= 0) {
     return false;
