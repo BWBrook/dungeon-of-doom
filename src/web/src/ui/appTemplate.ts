@@ -1,3 +1,5 @@
+import { LORE_TEMPLATE } from './loreContent';
+
 export const APP_TEMPLATE = String.raw`
     <main class="shell">
       <header class="masthead">
@@ -11,6 +13,7 @@ export const APP_TEMPLATE = String.raw`
             <button data-role="mode-editor-button" type="button">Editor</button>
             <button data-role="mode-creator-button" type="button">Creator</button>
             <button data-role="mode-archive-button" type="button">Archive</button>
+            <button data-role="mode-lore-button" type="button">Lore</button>
           </nav>
           <div class="sensory-controls" aria-label="Sensory controls">
             <button data-role="sound-toggle" type="button" aria-pressed="true">Sound On</button>
@@ -159,10 +162,61 @@ export const APP_TEMPLATE = String.raw`
               </p>
               <ul class="editor-messages" data-role="editor-messages"></ul>
             </section>
+            <section class="panel">
+              <h2>Level Library</h2>
+              <div class="library-save">
+                <label>
+                  Level Name
+                  <input data-role="editor-level-name" maxlength="30" value="New Level" />
+                </label>
+                <button data-role="editor-save-library-button" type="button">Save To Library</button>
+              </div>
+              <ul class="library-list" data-role="level-library-list"></ul>
+            </section>
           </aside>
+        </section>
+        <section class="panel quest-panel" aria-labelledby="quest-heading">
+          <div class="quest-header">
+            <div>
+              <h2 id="quest-heading">Quest Builder</h2>
+              <p>Order saved levels into a series. Put the Idol only in the last level.</p>
+            </div>
+            <p class="quest-status" data-role="quest-status" data-state="idle" aria-live="polite">
+              Save levels to the library, then add them here.
+            </p>
+          </div>
+          <div class="quest-grid">
+            <div class="quest-compose">
+              <div class="quest-fields">
+                <label>
+                  Quest Title
+                  <input data-role="quest-title" maxlength="40" value="New Quest" />
+                </label>
+                <label>
+                  Description
+                  <input data-role="quest-description" maxlength="120" value="" />
+                </label>
+              </div>
+              <ol class="library-list quest-stages" data-role="quest-stages"></ol>
+              <div class="quest-actions">
+                <button data-role="quest-new-button" type="button">New Quest</button>
+                <button data-role="quest-validate-button" type="button">Validate Quest</button>
+                <button data-role="quest-save-button" type="button">Save Quest</button>
+                <button data-role="quest-play-button" type="button">Play Quest</button>
+                <button data-role="quest-export-button" type="button">Export Quest JSON</button>
+                <button data-role="quest-import-button" type="button">Import Quest JSON</button>
+              </div>
+              <ul class="editor-messages" data-role="quest-messages"></ul>
+            </div>
+            <div class="quest-saved">
+              <h3>Saved Quests</h3>
+              <ul class="library-list" data-role="quest-library-list"></ul>
+            </div>
+          </div>
         </section>
         <section class="panel editor-output-panel" aria-labelledby="editor-output-heading">
           <h2 id="editor-output-heading">Editor Output</h2>
+          <p>Exports land here. Import Quest JSON reads from here too.</p>
           <textarea data-role="editor-output" spellcheck="false" rows="7"></textarea>
         </section>
       </section>
@@ -267,5 +321,6 @@ export const APP_TEMPLATE = String.raw`
           <textarea data-role="archive-output" spellcheck="false" rows="10"></textarea>
         </section>
       </section>
+      <section data-role="lore-mode" hidden>${LORE_TEMPLATE}</section>
     </main>
 `;

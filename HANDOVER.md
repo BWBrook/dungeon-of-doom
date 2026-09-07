@@ -29,8 +29,8 @@ are background, not an active backlog or authority over the PRD.
 The project began with book transcription and BASIC archaeology, then a
 specification before application code. Committed work established a seeded,
 deterministic engine, browser Play mode, legacy import/export, Dungeon Editor,
-Character Creator, visual/audio identity, and Archive workbench. These are four
-connected surfaces in one static application.
+Character Creator, visual/audio identity, Archive workbench, and (M10) a level library, quest builder, and Lore
+reference. These are five connected surfaces in one static application.
 
 The latest approved implementation tranche, **M8 Adventure Progression**, is
 recorded as complete in `progress.md` and included in this closeout:
@@ -110,8 +110,9 @@ installed dependencies are retained for the next agent.
 
 ## Direction and working style
 
-The current endpoint is a coherent playable revival through M9 (Play Feel
-And Legibility, September 2026; see `progress.md`). Barry's stated direction:
+The current endpoint is a coherent playable revival through M10 (Authored
+Adventures And Lore, September 2026; see `progress.md`). The agreed next
+tranche is M11, a headless balance harness across classes and seeds. Barry's stated direction:
 fully land the modern retro-clone first, then add expansion content in a
 measured way, eventually letting a player choose vanilla or expanded. The
 expansion menu lives in the C64 repo's `docs/enhancement_wishlist.md` and the

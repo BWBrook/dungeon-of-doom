@@ -537,7 +537,7 @@ test('paints an editor level, validates it, and launches play from the authored 
   await chooseEditorTool(page, 'Start');
   await clickEditorCell(page, 7, 7);
 
-  await page.getByRole('button', { name: 'Validate' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.locator('[data-role="editor-status"]')).toContainText(
     'Level validates for play.'
   );
@@ -614,7 +614,7 @@ test('loads an imported legacy level into the editor and exports it again', asyn
 
   await openEditor(page);
   await page.getByRole('button', { name: 'Edit Selected Level' }).click();
-  await page.getByRole('button', { name: 'Validate' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.locator('[data-role="editor-status"]')).toContainText(
     'Level validates for play.'
   );
@@ -639,7 +639,7 @@ test('creates a hero, exports modern and legacy payloads, and launches play', as
   await expect(page.locator('[data-role="creator-status"]')).toContainText('Tis yours.');
   await expect(salve).toContainText('Owned 1');
 
-  await page.getByRole('button', { name: 'Validate' }).click();
+  await page.getByRole('button', { name: 'Validate', exact: true }).click();
   await expect(page.locator('[data-role="creator-status"]')).toContainText(
     'Hero validates for play.'
   );
@@ -715,6 +715,63 @@ test('stacks creator restoratives and preserves mode switching', async ({ page }
   await page.getByRole('button', { name: 'Creator' }).click();
   await expect(page.locator('[data-role="creator-mode"]')).toBeVisible();
   await expect(salve).toContainText('Owned 2');
+});
+
+test('saves editor levels to the library, builds a quest, and plays it as an adventure', async ({
+  page
+}) => {
+  await resetPage(page);
+  await openEditor(page);
+
+  await page.locator('[data-role="editor-level-name"]').fill('Gatehouse');
+  await page.getByRole('button', { name: 'Save To Library' }).click();
+  await expect(page.locator('[data-role="editor-status"]')).toContainText('Saved "Gatehouse"');
+
+  await chooseEditorTool(page, 'Idol');
+  await clickEditorCell(page, 9, 9);
+  await page.locator('[data-role="editor-level-name"]').fill('Idol Crypt');
+  await page.getByRole('button', { name: 'Save To Library' }).click();
+  await expect(page.locator('[data-role="level-library-list"] li')).toHaveCount(2);
+
+  const gatehouse = page.locator('[data-role="level-library-list"] li').filter({ hasText: 'Gatehouse' });
+  const crypt = page.locator('[data-role="level-library-list"] li').filter({ hasText: 'Idol Crypt' });
+
+  await crypt.getByRole('button', { name: 'Add To Quest' }).click();
+  await gatehouse.getByRole('button', { name: 'Add To Quest' }).click();
+  await page.getByRole('button', { name: 'Validate Quest' }).click();
+  await expect(page.locator('[data-role="quest-status"]')).toContainText('blocking errors');
+  await expect(page.locator('[data-role="quest-messages"]')).toContainText('Idol');
+
+  await page.getByRole('button', { name: 'Move level 2 up' }).click();
+  await page.locator('[data-role="quest-title"]').fill('Crypt Run');
+  await page.getByRole('button', { name: 'Validate Quest' }).click();
+  await expect(page.locator('[data-role="quest-status"]')).toContainText('validates for play');
+
+  await page.getByRole('button', { name: 'Export Quest JSON' }).click();
+  await expect(page.locator('[data-role="editor-output"]')).toHaveValue(/dungeon-of-doom\.quest/);
+
+  await page.getByRole('button', { name: 'Play Quest' }).click();
+  await expect(page.locator('[data-role="play-mode"]')).toBeVisible();
+  await expect(page.locator('[data-role="adventure-progress-title"]')).toHaveText('Crypt Run');
+  await expect(page.locator('[data-role="adventure-progress-stage"]')).toHaveText('Level 1 of 2');
+  await expect(page.locator('[data-role="adventure-select"]')).toContainText('Crypt Run');
+
+  await clickCommand(page, 'save');
+  await page.reload();
+  await page.getByRole('button', { name: 'Resume Saved' }).click();
+  await expect(page.locator('[data-role="adventure-progress-title"]')).toHaveText('Crypt Run');
+
+  await openEditor(page);
+  await expect(page.locator('[data-role="quest-library-list"]')).toContainText('Crypt Run');
+});
+
+test('shows the in-app Lore', async ({ page }) => {
+  await resetPage(page);
+
+  await page.getByRole('button', { name: 'Lore' }).click();
+  await expect(page.locator('[data-role="lore-mode"]')).toBeVisible();
+  await expect(page.locator('[data-role="lore-mode"]')).toContainText('Superzap');
+  await expect(page.locator('[data-role="play-mode"]')).toBeHidden();
 });
 
 test('keeps the upgraded shell usable on a narrow viewport', async ({ page }) => {

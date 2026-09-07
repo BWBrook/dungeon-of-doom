@@ -46,6 +46,20 @@ No known M8 blockers remain.
 - `.claude/launch.json` starts the dev server on port 5174 for the in-app
   browser preview.
 
+## M10 Authored Adventures And Lore
+
+- Editor gains a Level Library (browser storage) and a Quest Builder that
+  orders saved levels into an adventure. Depth is the stage position: level
+  ids are renumbered 1..n when the quest is built.
+- Quests validate through the existing adventure rules, save to a quest
+  library, export and import as `dungeon-of-doom.quest` JSON, and appear in
+  the Play adventure select. Saved sessions resolve bundled quests first,
+  then the library.
+- New Lore mode: a reference in the product's own words covering premise,
+  keys, attributes, classes, gear, monsters, traps, spells, and authoring.
+- Coverage: quest model and library unit tests, plus browser scenarios for
+  library to quest to play with save and resume, and for the Lore panel.
+
 ## Successor Handover
 
 - `HANDOVER.md` is the compact entry point for a fresh task.

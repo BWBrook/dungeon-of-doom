@@ -50,6 +50,29 @@ import type { LegacyDiagnostic, LegacyPayloadReport } from '../persist/archive';
 import { ARCHIVE_EXAMPLES, archiveExampleById } from '../persist/archiveExamples';
 import { formatHeroString, formatLevelString, parseHeroString, parseLevelString } from '../persist/legacy';
 import { formatHeroDocument } from '../persist/heroDocument';
+import {
+  findLibraryQuest,
+  formatQuestDocument,
+  loadLevelLibrary,
+  loadQuestLibrary,
+  newLibraryId,
+  parseQuestDocument,
+  removeLevelFromLibrary,
+  removeQuestFromLibrary,
+  saveLevelToLibrary,
+  saveQuestToLibrary
+} from '../persist/library';
+import type { LibraryLevel } from '../persist/library';
+import {
+  addQuestStage,
+  createQuestDraft,
+  moveQuestStage,
+  questDefinitionFromDraft,
+  questDraftFromDefinition,
+  removeQuestStage,
+  validateQuestDraft
+} from '../quest/model';
+import type { QuestDraft, QuestValidation } from '../quest/model';
 import { formatLevelDocument } from '../persist/levelDocument';
 import { loadPlaySession, savePlaySession } from '../persist/save';
 import type { SerializedPlaySession } from '../persist/save';
@@ -63,6 +86,8 @@ import {
 } from '../play/session';
 import type { ActivePlaySession } from '../play/session';
 import { renderAdventureOutcome, renderAdventureProgress } from './adventureView';
+import { renderQuestView } from './questView';
+import type { QuestViewRefs } from './questView';
 import { AudioEngine } from './audio';
 import { EditorRenderer } from './editorRenderer';
 import { DungeonRenderer } from './renderer';
@@ -104,7 +129,7 @@ const LEVEL_OPTIONS = [
 
 const ADVENTURE_OPTIONS = [{ value: lostIdolAdventure.id, label: lostIdolAdventure.title }] as const;
 
-type AppMode = 'play' | 'editor' | 'creator' | 'archive';
+type AppMode = 'play' | 'editor' | 'creator' | 'archive' | 'lore';
 type PlayKind = ActivePlaySession['kind'];
 type StatusState = ViewStatusState;
 
@@ -135,6 +160,8 @@ export function mountApp(root: HTMLDivElement) {
   const modeEditorButton = requireElement(root, '[data-role="mode-editor-button"]', HTMLButtonElement);
   const modeCreatorButton = requireElement(root, '[data-role="mode-creator-button"]', HTMLButtonElement);
   const modeArchiveButton = requireElement(root, '[data-role="mode-archive-button"]', HTMLButtonElement);
+  const modeLoreButton = requireElement(root, '[data-role="mode-lore-button"]', HTMLButtonElement);
+  const loreModePanel = requireElement(root, '[data-role="lore-mode"]', HTMLElement);
   const soundToggle = requireElement(root, '[data-role="sound-toggle"]', HTMLButtonElement);
   const motionToggle = requireElement(root, '[data-role="motion-toggle"]', HTMLButtonElement);
   const playModePanel = requireElement(root, '[data-role="play-mode"]', HTMLElement);
@@ -226,6 +253,25 @@ export function mountApp(root: HTMLDivElement) {
   const editorStatus = requireElement(root, '[data-role="editor-status"]', HTMLParagraphElement);
   const editorMessages = requireElement(root, '[data-role="editor-messages"]', HTMLUListElement);
   const editorOutput = requireElement(root, '[data-role="editor-output"]', HTMLTextAreaElement);
+  const editorLevelName = requireElement(root, '[data-role="editor-level-name"]', HTMLInputElement);
+  const editorSaveLibraryButton = requireElement(
+    root,
+    '[data-role="editor-save-library-button"]',
+    HTMLButtonElement
+  );
+  const levelLibraryList = requireElement(root, '[data-role="level-library-list"]', HTMLUListElement);
+  const questTitle = requireElement(root, '[data-role="quest-title"]', HTMLInputElement);
+  const questDescription = requireElement(root, '[data-role="quest-description"]', HTMLInputElement);
+  const questStages = requireElement(root, '[data-role="quest-stages"]', HTMLOListElement);
+  const questLibraryList = requireElement(root, '[data-role="quest-library-list"]', HTMLUListElement);
+  const questStatus = requireElement(root, '[data-role="quest-status"]', HTMLParagraphElement);
+  const questMessages = requireElement(root, '[data-role="quest-messages"]', HTMLUListElement);
+  const questNewButton = requireElement(root, '[data-role="quest-new-button"]', HTMLButtonElement);
+  const questValidateButton = requireElement(root, '[data-role="quest-validate-button"]', HTMLButtonElement);
+  const questSaveButton = requireElement(root, '[data-role="quest-save-button"]', HTMLButtonElement);
+  const questPlayButton = requireElement(root, '[data-role="quest-play-button"]', HTMLButtonElement);
+  const questExportButton = requireElement(root, '[data-role="quest-export-button"]', HTMLButtonElement);
+  const questImportButton = requireElement(root, '[data-role="quest-import-button"]', HTMLButtonElement);
   const creatorSeedInput = requireElement(root, '[data-role="creator-seed-input"]', HTMLInputElement);
   const creatorNameInput = requireElement(root, '[data-role="creator-name-input"]', HTMLInputElement);
   const creatorRollButton = requireElement(root, '[data-role="creator-roll-button"]', HTMLButtonElement);
@@ -300,6 +346,16 @@ export function mountApp(root: HTMLDivElement) {
   const editorViewRefs = {
     toolPalette: editorToolPalette
   };
+  const questViewRefs: QuestViewRefs = {
+    levelName: editorLevelName,
+    levelList: levelLibraryList,
+    title: questTitle,
+    description: questDescription,
+    stages: questStages,
+    questList: questLibraryList,
+    status: questStatus,
+    messages: questMessages
+  };
   const creatorViewRefs: CreatorViewRefs = {
     seedInput: creatorSeedInput,
     nameInput: creatorNameInput,
@@ -334,9 +390,6 @@ export function mountApp(root: HTMLDivElement) {
     heroSelect.add(new Option(option.label, option.value));
   }
 
-  for (const option of ADVENTURE_OPTIONS) {
-    adventureSelect.add(new Option(option.label, option.value));
-  }
 
   for (const option of LEVEL_OPTIONS) {
     levelSelect.add(new Option(option.label, option.value));
@@ -382,7 +435,6 @@ export function mountApp(root: HTMLDivElement) {
   }
 
   heroSelect.value = HERO_OPTIONS[0].value;
-  adventureSelect.value = ADVENTURE_OPTIONS[0].value;
   levelSelect.value = LEVEL_OPTIONS[0].value;
 
   const renderer = new DungeonRenderer(canvas);
@@ -407,6 +459,12 @@ export function mountApp(root: HTMLDivElement) {
   let authoredLevel: LevelDefinition | null = null;
   let convertedLevel: LevelDefinition | null = null;
   let editorDraft: EditorDraft = createDefaultEditorDraft();
+  let levelLibrary: LibraryLevel[] = loadLevelLibrary();
+  let questLibrary = loadQuestLibrary();
+  let questDraft: QuestDraft = createQuestDraft();
+  let questStatusMessage = 'Save levels to the library, then add them here.';
+  let questStatusState: StatusState = 'idle';
+  let questMessageRows: string[] = [];
   let creatorDraft: CreatorDraft = createDefaultCreatorDraft(Number(creatorSeedInput.value) || 1984);
   let creatorStatusMessage = 'Roll a hero, spend points, buy gear, then launch.';
   let creatorStatusState: StatusState = 'idle';
@@ -415,6 +473,8 @@ export function mountApp(root: HTMLDivElement) {
   let archiveStatusState: StatusState = 'idle';
   let archiveMessageRows: string[] = [];
   let appMessages: string[] = [];
+
+  refreshAdventureOptions();
 
   audio.setEnabled(sensoryPreferences.audioEnabled);
 
@@ -426,6 +486,16 @@ export function mountApp(root: HTMLDivElement) {
       renderCurrentGame();
     } else if (mode === 'editor') {
       renderEditorView(editorRenderer, editorViewRefs, editorDraft);
+      renderQuestView(questViewRefs, {
+        levels: levelLibrary,
+        quests: questLibrary,
+        draft: questDraft,
+        statusMessage: questStatusMessage,
+        statusState: questStatusState,
+        messageRows: questMessageRows
+      });
+    } else if (mode === 'lore') {
+      return;
     } else if (mode === 'creator') {
       renderCreatorView(
         creatorViewRefs,
@@ -444,10 +514,12 @@ export function mountApp(root: HTMLDivElement) {
     editorModePanel.hidden = mode !== 'editor';
     creatorModePanel.hidden = mode !== 'creator';
     archiveModePanel.hidden = mode !== 'archive';
+    loreModePanel.hidden = mode !== 'lore';
     modePlayButton.setAttribute('aria-pressed', String(mode === 'play'));
     modeEditorButton.setAttribute('aria-pressed', String(mode === 'editor'));
     modeCreatorButton.setAttribute('aria-pressed', String(mode === 'creator'));
     modeArchiveButton.setAttribute('aria-pressed', String(mode === 'archive'));
+    modeLoreButton.setAttribute('aria-pressed', String(mode === 'lore'));
 
     if (mode === 'editor') {
       editorRenderer.resize();
@@ -628,7 +700,7 @@ export function mountApp(root: HTMLDivElement) {
   }
 
   function resolveSelectedAdventure() {
-    const adventure = adventureCatalog[adventureSelect.value];
+    const adventure = adventureCatalog[adventureSelect.value] ?? findLibraryQuest(adventureSelect.value);
 
     if (!adventure) {
       throw new Error('Selected adventure is not available.');
@@ -1059,6 +1131,193 @@ export function mountApp(root: HTMLDivElement) {
     renderApp();
   }
 
+  function refreshAdventureOptions() {
+    const selected = adventureSelect.value;
+
+    adventureSelect.innerHTML = '';
+
+    for (const option of ADVENTURE_OPTIONS) {
+      adventureSelect.add(new Option(option.label, option.value));
+    }
+
+    for (const quest of questLibrary) {
+      adventureSelect.add(new Option(quest.title, quest.id));
+    }
+
+    adventureSelect.value = Array.from(adventureSelect.options).some((option) => option.value === selected)
+      ? selected
+      : ADVENTURE_OPTIONS[0].value;
+  }
+
+  function saveEditorLevelToLibrary() {
+    const validation = validateEditorDraft(editorDraft);
+
+    if (!validation.canPlay) {
+      setEditorStatus('Fix blocking errors before saving to the library.', 'error', validation);
+      renderApp();
+      return;
+    }
+
+    const name = editorLevelName.value.trim() || 'Untitled Level';
+    const existing = levelLibrary.find((entry) => entry.name === name);
+
+    levelLibrary = saveLevelToLibrary({
+      id: existing?.id ?? newLibraryId('level'),
+      name,
+      level: levelFromEditorDraft(editorDraft),
+      savedAt: new Date().toISOString()
+    });
+    setEditorStatus(existing ? `Replaced "${name}" in the library.` : `Saved "${name}" to the library.`, 'success', validation);
+    renderApp();
+  }
+
+  function loadLibraryLevel(id: string) {
+    const entry = levelLibrary.find((item) => item.id === id);
+
+    if (!entry) {
+      return;
+    }
+
+    editorDraft = editorDraftFromLevel(entry.level);
+    editorLevelName.value = entry.name;
+    setEditorStatus(`Loaded "${entry.name}" into the editor.`, 'success', validateEditorDraft(editorDraft));
+    renderApp();
+  }
+
+  function deleteLibraryLevel(id: string) {
+    const entry = levelLibrary.find((item) => item.id === id);
+
+    levelLibrary = removeLevelFromLibrary(id);
+    setEditorStatus(entry ? `Deleted "${entry.name}" from the library.` : 'Level removed.', 'idle');
+    renderApp();
+  }
+
+  function addLibraryLevelToQuest(id: string) {
+    const entry = levelLibrary.find((item) => item.id === id);
+
+    if (!entry) {
+      return;
+    }
+
+    questDraft = addQuestStage(questDraft, entry.name, entry.level);
+    setQuestStatus(`Added "${entry.name}" as level ${questDraft.stages.length}.`, 'success', validateQuestDraft(questDraft));
+    renderApp();
+  }
+
+  function changeQuestStage(action: string, index: number) {
+    if (action === 'up') {
+      questDraft = moveQuestStage(questDraft, index, -1);
+    } else if (action === 'down') {
+      questDraft = moveQuestStage(questDraft, index, 1);
+    } else if (action === 'remove') {
+      questDraft = removeQuestStage(questDraft, index);
+    }
+
+    setQuestStatus('Quest order updated.', 'idle', validateQuestDraft(questDraft));
+    renderApp();
+  }
+
+  function resetQuestDraft() {
+    questDraft = createQuestDraft();
+    setQuestStatus('New quest ready.', 'idle');
+    renderApp();
+  }
+
+  function validateQuest() {
+    const validation = validateQuestDraft(questDraft);
+
+    setQuestStatus(validation.canPlay ? 'Quest validates for play.' : 'Quest has blocking errors.', validation.canPlay ? 'success' : 'error', validation);
+    renderApp();
+  }
+
+  function saveQuest(): boolean {
+    const validation = validateQuestDraft(questDraft);
+
+    if (!validation.canPlay) {
+      setQuestStatus('Cannot save this quest yet.', 'error', validation);
+      renderApp();
+      return false;
+    }
+
+    const definition = questDefinitionFromDraft(questDraft);
+
+    questLibrary = saveQuestToLibrary(definition);
+    refreshAdventureOptions();
+    setQuestStatus(`Saved "${definition.title}" with ${definition.stages.length} levels.`, 'success', validation);
+    renderApp();
+    return true;
+  }
+
+  function playQuest() {
+    if (!saveQuest()) {
+      return;
+    }
+
+    adventureSelect.value = questDraft.id;
+    playKindSelect.value = 'adventure';
+    mode = 'play';
+    startRun();
+  }
+
+  function loadLibraryQuest(id: string) {
+    const quest = questLibrary.find((item) => item.id === id);
+
+    if (!quest) {
+      return;
+    }
+
+    questDraft = questDraftFromDefinition(quest);
+    setQuestStatus(`Loaded "${quest.title}" into the builder.`, 'success', validateQuestDraft(questDraft));
+    renderApp();
+  }
+
+  function deleteLibraryQuest(id: string) {
+    const quest = questLibrary.find((item) => item.id === id);
+
+    questLibrary = removeQuestFromLibrary(id);
+    refreshAdventureOptions();
+    setQuestStatus(quest ? `Deleted "${quest.title}".` : 'Quest removed.', 'idle');
+    renderApp();
+  }
+
+  function exportQuestJson() {
+    const validation = validateQuestDraft(questDraft);
+
+    if (!validation.canPlay) {
+      setQuestStatus('Cannot export until blocking errors are fixed.', 'error', validation);
+      renderApp();
+      return;
+    }
+
+    editorOutput.value = formatQuestDocument(questDefinitionFromDraft(questDraft));
+    setQuestStatus('Exported quest JSON to the editor output.', 'success', validation);
+    renderApp();
+  }
+
+  function importQuestJson() {
+    try {
+      const quest = parseQuestDocument(editorOutput.value);
+
+      questDraft = questDraftFromDefinition(quest);
+      setQuestStatus(`Imported "${quest.title}" into the builder. Save it to keep it.`, 'success', validateQuestDraft(questDraft));
+    } catch (error) {
+      setQuestStatus(getErrorMessage(error), 'error');
+    }
+
+    renderApp();
+  }
+
+  function setQuestStatus(message: string, state: StatusState, validation?: QuestValidation) {
+    questStatusMessage = message;
+    questStatusState = state;
+    questMessageRows = validation
+      ? [
+          ...validation.errors.map((entry) => `Error: ${entry}`),
+          ...validation.warnings.map((entry) => `Warning: ${entry}`)
+        ]
+      : [];
+  }
+
   function rollCreatorHero() {
     const seed = Number(creatorSeedInput.value) || 1984;
 
@@ -1378,6 +1637,9 @@ export function mountApp(root: HTMLDivElement) {
   modeArchiveButton.addEventListener('click', () => {
     setMode('archive');
   });
+  modeLoreButton.addEventListener('click', () => {
+    setMode('lore');
+  });
   soundToggle.addEventListener('click', () => {
     toggleAudioPreference();
   });
@@ -1470,6 +1732,70 @@ export function mountApp(root: HTMLDivElement) {
   });
   editorClearOutputButton.addEventListener('click', () => {
     clearEditorOutput();
+  });
+  editorSaveLibraryButton.addEventListener('click', () => {
+    saveEditorLevelToLibrary();
+  });
+  levelLibraryList.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.levelId) {
+      return;
+    }
+
+    if (target.dataset.libraryAction === 'load') {
+      loadLibraryLevel(target.dataset.levelId);
+    } else if (target.dataset.libraryAction === 'add') {
+      addLibraryLevelToQuest(target.dataset.levelId);
+    } else if (target.dataset.libraryAction === 'delete') {
+      deleteLibraryLevel(target.dataset.levelId);
+    }
+  });
+  questStages.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.stageAction || !target.dataset.stageIndex) {
+      return;
+    }
+
+    changeQuestStage(target.dataset.stageAction, Number(target.dataset.stageIndex));
+  });
+  questLibraryList.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.questId) {
+      return;
+    }
+
+    if (target.dataset.questAction === 'load') {
+      loadLibraryQuest(target.dataset.questId);
+    } else if (target.dataset.questAction === 'delete') {
+      deleteLibraryQuest(target.dataset.questId);
+    }
+  });
+  questTitle.addEventListener('input', () => {
+    questDraft = { ...questDraft, title: questTitle.value };
+  });
+  questDescription.addEventListener('input', () => {
+    questDraft = { ...questDraft, description: questDescription.value };
+  });
+  questNewButton.addEventListener('click', () => {
+    resetQuestDraft();
+  });
+  questValidateButton.addEventListener('click', () => {
+    validateQuest();
+  });
+  questSaveButton.addEventListener('click', () => {
+    saveQuest();
+  });
+  questPlayButton.addEventListener('click', () => {
+    playQuest();
+  });
+  questExportButton.addEventListener('click', () => {
+    exportQuestJson();
+  });
+  questImportButton.addEventListener('click', () => {
+    importQuestJson();
   });
   creatorRollButton.addEventListener('click', () => {
     rollCreatorHero();

@@ -1,6 +1,7 @@
 import { Adventure } from '../adventure/model';
 import type { AdventureSnapshot } from '../adventure/model';
 import { adventureById } from '../content/adventures';
+import { findLibraryQuest } from '../persist/library';
 import { Game } from '../engine/game';
 import type { Action, SerializedRun, Snapshot, StepResult } from '../engine/types';
 import type { SerializedPlaySession } from '../persist/save';
@@ -42,10 +43,12 @@ export function restorePlaySession(serialized: SerializedPlaySession): ActivePla
     return { kind: 'single', game: Game.fromSerializedRun(serialized.run) };
   }
 
-  const definition = adventureById(serialized.adventure.definitionId);
+  const definition =
+    adventureById(serialized.adventure.definitionId) ??
+    findLibraryQuest(serialized.adventure.definitionId);
 
   if (!definition) {
-    throw new Error('Saved adventure is not available in this build.');
+    throw new Error('Saved quest is no longer in this browser\'s library.');
   }
 
   return {

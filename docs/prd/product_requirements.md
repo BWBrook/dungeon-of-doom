@@ -99,6 +99,8 @@ Core capabilities:
 - validate authored levels against canon constraints
 - export to modern JSON and legacy level format
 - launch play mode directly from the authored level
+- save levels to a local library and order them into a quest
+- validate, save, export, and import quests, and play them as adventures
 
 ### Mode 3: Character Creator
 
@@ -109,6 +111,12 @@ Core capabilities:
 - buy items through the original item/class restrictions
 - export to modern JSON and legacy hero format
 - launch play mode directly from the created hero
+
+### Mode 5: Lore
+
+A reference written in the product's own words: premise, keys, attributes,
+character types, gear, monsters, traps, spells, and the authoring tools. It
+replaces the role the printed Book of Lore played without shipping its text.
 
 ### Mode 4: Archive Workbench
 
@@ -246,6 +254,21 @@ Acceptance:
 
 - a first-time player can read what happened each turn without scanning the
   log, and finishes a level with most of their gear intact
+
+### M10: Authored Adventures And Lore
+
+Deliverables:
+
+- local level library saved in the browser from the Editor
+- quest builder that orders library levels into an adventure, with
+  validation, save, export, and import as a modern JSON quest document
+- authored quests selectable in Play and restorable from saves
+- in-app Lore panel
+
+Acceptance:
+
+- a player can design a series of levels, assemble them into a quest, take
+  any hero through it, save mid-quest, and resume, all without leaving the app
 
 ## Success Criteria
 
