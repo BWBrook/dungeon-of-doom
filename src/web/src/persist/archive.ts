@@ -8,6 +8,7 @@ import {
   isLegacyMonsterCode,
   pointKey
 } from '../engine/catalog';
+import { nextWholeExperienceTarget } from '../engine/game';
 import type {
   BaseTileKind,
   HeroState,
@@ -253,7 +254,7 @@ export function convertLegacySnapshotToRun(input: LegacySnapshotInput, seed: num
 
   return {
     run: {
-      version: 1,
+      version: 2,
       seed: runSeed,
       rngState: runSeed,
       hero: runtimeHero,
@@ -265,7 +266,8 @@ export function convertLegacySnapshotToRun(input: LegacySnapshotInput, seed: num
       activeMonsterId: null,
       runStatus: 'playing',
       score: null,
-      turnCount: 0
+      turnCount: 0,
+      exitExperienceTarget: nextWholeExperienceTarget(runtimeHero.stats.experience)
     },
     diagnostics: report.diagnostics
   };

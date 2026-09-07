@@ -8,6 +8,9 @@ testable without any browser renderer.
 The renderer, editor, creator, and import/export UI all sit on top of the same
 engine package.
 
+`Game` owns exactly one dungeon. `Adventure` composes successive `Game`
+instances and owns progression, stage summaries, and adventure save state.
+
 ## Design Principles
 
 - Pure deterministic state transitions
@@ -33,6 +36,7 @@ Suggested shape:
 - `rngState`
 - `turnCount`
 - `runStatus`
+- `exitExperienceTarget`
 - `lastActionResult`
 
 ### HeroState
@@ -57,8 +61,8 @@ Notes:
 
 - `stats` holds current strength, vitality, agility, intelligence, experience,
   luck, aura, and morality.
-- `baseStats` holds the loaded or created baseline values used by potions,
-  healing, and exit-gating checks.
+- `baseStats` holds the loaded or created baseline values used by potions and
+  healing. Exit progression uses an explicit per-level target instead.
 - `inventorySlots` is keyed by legacy slot id `1..24`.
 - `spellCharges` is explicit runtime state even though legacy load derives it.
 - `status` should at minimum include `trapped`, `won`, `dead`, and any future
@@ -99,6 +103,27 @@ Notes:
 - `hp` should preserve the BASIC strength relationship.
 - `stepSize` is the movement rate derived from monster tier, but the modern
   engine should guarantee that valid monsters can move.
+
+### AdventureState
+
+Suggested fields:
+
+- `definitionId`
+- `rootSeed`
+- `stageIndex`
+- `status`
+- `completedStages`
+- `stageEntryMetrics`
+- `currentRun`
+
+Notes:
+
+- Stage seeds are derived deterministically from the root seed and stage index.
+- A successful non-final exit pauses between levels until the player continues.
+- Hero state carries exactly between levels except for placement, facing, and
+  transient status flags.
+- Final-level escape without the Idol abandons the quest; recovering the Idol
+  wins it.
 
 ## Enumerations And Catalogs
 
@@ -297,5 +322,7 @@ Modern runtime save should preserve:
 - visibility
 - active monster
 - RNG state
+- the current exit experience target
+- adventure stage, completed-stage summaries, and root seed when applicable
 
 Do not use legacy packed hero/level strings as the main runtime save model.

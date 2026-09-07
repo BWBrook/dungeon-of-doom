@@ -38,6 +38,10 @@ export interface RunPresentation {
   outcome: RunOutcome;
 }
 
+export interface RunPresentationOptions {
+  saveAllowedAfterRun?: boolean;
+}
+
 const COMMANDS: Array<Omit<CommandState, 'enabled' | 'hint'>> = [
   { id: 'turnLeft', label: 'Turn Left', hotkey: 'B' },
   { id: 'turnRight', label: 'Turn Right', hotkey: 'N' },
@@ -54,7 +58,8 @@ const COMMANDS: Array<Omit<CommandState, 'enabled' | 'hint'>> = [
 export function createRunPresentation(
   snapshot: Snapshot | null,
   level: LevelDefinition | null,
-  fallbackMessages: string[] = []
+  fallbackMessages: string[] = [],
+  options: RunPresentationOptions = {}
 ): RunPresentation {
   if (!snapshot) {
     return {
@@ -88,6 +93,7 @@ export function createRunPresentation(
       { label: 'VIT', value: formatNumber(hero.stats.vitality) },
       { label: 'AUR', value: formatNumber(hero.stats.aura) },
       { label: 'EXP', value: formatNumber(hero.stats.experience) },
+      { label: 'NEXT EXP', value: String(snapshot.exitExperienceTarget) },
       { label: 'FACE', value: hero.facing },
       { label: 'RUN', value: snapshot.runStatus.toUpperCase() },
       { label: 'LIGHT', value: String(hero.lightUses) },
@@ -97,7 +103,14 @@ export function createRunPresentation(
       { label: 'ACTIVE', value: snapshot.activeMonster ? `${Math.ceil(snapshot.activeMonster.hp)} HP` : 'NONE' },
       { label: 'SCORE', value: snapshot.score === null ? '--' : String(snapshot.score) }
     ],
-    commandStates: commandStates(canAct, hasRestorative, hasMagicSource, hasLight, snapshot.activeMonster !== null),
+    commandStates: commandStates(
+      canAct,
+      options.saveAllowedAfterRun ?? false,
+      hasRestorative,
+      hasMagicSource,
+      hasLight,
+      snapshot.activeMonster !== null
+    ),
     latestMessage,
     logRows: snapshot.messages.length > 0 ? snapshot.messages : [latestMessage],
     outcome
@@ -106,6 +119,7 @@ export function createRunPresentation(
 
 function commandStates(
   canAct: boolean,
+  saveAllowedAfterRun: boolean,
   hasRestorative: boolean,
   hasMagicSource: boolean,
   hasLight: boolean,
@@ -113,6 +127,10 @@ function commandStates(
 ): CommandState[] {
   return COMMANDS.map((command) => {
     if (!canAct) {
+      if (command.id === 'save' && saveAllowedAfterRun) {
+        return { ...command, enabled: true, hint: 'Save adventure progress.' };
+      }
+
       return { ...command, enabled: false, hint: 'Run has ended.' };
     }
 

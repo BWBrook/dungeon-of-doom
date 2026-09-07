@@ -116,6 +116,7 @@ export interface GameInit {
   hero: HeroState;
   level: LevelDefinition;
   seed: number;
+  exitExperienceTarget: number;
 }
 
 export interface StepResult {
@@ -152,10 +153,11 @@ export interface Snapshot {
   runStatus: RunStatus;
   score: number | null;
   turnCount: number;
+  exitExperienceTarget: number;
 }
 
 export interface SerializedRun {
-  version: 1;
+  version: 2;
   seed: number;
   rngState: number;
   hero: HeroState;
@@ -168,4 +170,5 @@ export interface SerializedRun {
   runStatus: RunStatus;
   score: number | null;
   turnCount: number;
+  exitExperienceTarget: number;
 }

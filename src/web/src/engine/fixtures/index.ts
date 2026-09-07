@@ -6,18 +6,10 @@ import {
   createEmptyInventorySlots,
   createHeroStatus,
   deriveClassId,
-  legacyCodeToTileKind,
-  tileKindToLegacyCode
+  legacyCodeToTileKind
 } from '../catalog';
-import type {
-  BaseTileKind,
-  ClassId,
-  HeroState,
-  LevelDefinition,
-  MonsterSpawn,
-  Point,
-  Stats
-} from '../types';
+import { defineLevelFromRows } from '../levelBuilder';
+import type { ClassId, HeroState, LevelDefinition, Stats } from '../types';
 
 function createStats(values: Partial<Stats>): Stats {
   return {
@@ -72,81 +64,6 @@ function createHero(
   return hero;
 }
 
-function cellFromChar(character: string): {
-  kind: BaseTileKind;
-  monsterLegacyCode: number | null;
-} {
-  switch (character) {
-    case '#':
-      return { kind: 'wall', monsterLegacyCode: null };
-    case 'V':
-      return { kind: 'vase', monsterLegacyCode: null };
-    case 'C':
-      return { kind: 'chest', monsterLegacyCode: null };
-    case 'I':
-      return { kind: 'idol', monsterLegacyCode: null };
-    case 'E':
-      return { kind: 'entrance', monsterLegacyCode: null };
-    case 'X':
-      return { kind: 'exit', monsterLegacyCode: null };
-    case 'T':
-      return { kind: 'trap', monsterLegacyCode: null };
-    case 'S':
-      return { kind: 'safe', monsterLegacyCode: null };
-    case '1':
-      return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.monster1 };
-    case '2':
-      return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.monster2 };
-    case '3':
-      return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.monster3 };
-    default:
-      return { kind: 'floor', monsterLegacyCode: null };
-  }
-}
-
-function createLevel(id: number, rows: string[], startPosition: Point): LevelDefinition {
-  const cells = [];
-  const monsterSpawns: MonsterSpawn[] = [];
-  let authoredEntrancePosition = startPosition;
-
-  for (let y = 0; y < rows.length; y += 1) {
-    const row = rows[y] ?? '';
-
-    for (let x = 0; x < row.length; x += 1) {
-      const symbol = row[x] ?? '.';
-      const parsed = cellFromChar(symbol);
-      const point = { x, y };
-
-      if (parsed.kind === 'entrance') {
-        authoredEntrancePosition = point;
-      }
-
-      if (parsed.monsterLegacyCode !== null) {
-        monsterSpawns.push({
-          id: `monster-${id}-${monsterSpawns.length + 1}`,
-          position: point,
-          legacyTileCode: parsed.monsterLegacyCode
-        });
-      }
-
-      cells.push({
-        kind: parsed.kind,
-        legacyCode: tileKindToLegacyCode(parsed.kind)
-      });
-    }
-  }
-
-  return {
-    id,
-    width: 15,
-    height: 15,
-    cells,
-    startPosition,
-    authoredEntrancePosition,
-    monsterSpawns
-  };
-}
-
 const warriorStats = createStats({
   strength: 10,
   vitality: 9,
@@ -189,9 +106,9 @@ export const clericStarter = createHero('Selene', deriveClassId(clericStats), cl
   24: 1
 });
 
-export const wallBumpLevel = createLevel(
-  1,
-  [
+export const wallBumpLevel = defineLevelFromRows({
+  id: 1,
+  rows: [
     '###############',
     '#.............#',
     '#.............#',
@@ -208,12 +125,12 @@ export const wallBumpLevel = createLevel(
     '#............X#',
     '###############'
   ],
-  { x: 7, y: 7 }
-);
+  startPosition: { x: 7, y: 7 }
+});
 
-export const trapEscapeLevel = createLevel(
-  2,
-  [
+export const trapEscapeLevel = defineLevelFromRows({
+  id: 2,
+  rows: [
     '###############',
     '#.............#',
     '#.............#',
@@ -230,12 +147,12 @@ export const trapEscapeLevel = createLevel(
     '#............X#',
     '###############'
   ],
-  { x: 7, y: 7 }
-);
+  startPosition: { x: 7, y: 7 }
+});
 
-export const revealGuardLevel = createLevel(
-  3,
-  [
+export const revealGuardLevel = defineLevelFromRows({
+  id: 3,
+  rows: [
     '###############',
     '#.............#',
     '#.............#',
@@ -252,12 +169,12 @@ export const revealGuardLevel = createLevel(
     '#............X#',
     '###############'
   ],
-  { x: 6, y: 7 }
-);
+  startPosition: { x: 6, y: 7 }
+});
 
-export const idolFinishLevel = createLevel(
-  4,
-  [
+export const idolFinishLevel = defineLevelFromRows({
+  id: 4,
+  rows: [
     '###############',
     '#.............#',
     '#.............#',
@@ -274,12 +191,12 @@ export const idolFinishLevel = createLevel(
     '#............X#',
     '###############'
   ],
-  { x: 7, y: 7 }
-);
+  startPosition: { x: 7, y: 7 }
+});
 
-export const mixedDemoLevel = createLevel(
-  5,
-  [
+export const mixedDemoLevel = defineLevelFromRows({
+  id: 5,
+  rows: [
     '###############',
     '#.............#',
     '#..V......1...#',
@@ -296,8 +213,8 @@ export const mixedDemoLevel = createLevel(
     '#............X#',
     '###############'
   ],
-  { x: 7, y: 7 }
-);
+  startPosition: { x: 7, y: 7 }
+});
 
 export const levelFixtures = {
   wall_bump_level: wallBumpLevel,
@@ -314,7 +231,8 @@ export const heroFixtures = {
 
 export function createLegacyFriendlyLevelFixture(): LevelDefinition {
   const rows = Array.from({ length: 15 }, () => '.'.repeat(15));
-  const level = createLevel(6, rows, { x: 0, y: 0 });
+  rows[0] = `E${rows[0]!.slice(1)}`;
+  const level = defineLevelFromRows({ id: 6, rows, startPosition: { x: 0, y: 0 } });
 
   level.cells[0] = {
     kind: legacyCodeToTileKind(LEGACY_CODES.entrance),

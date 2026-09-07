@@ -77,7 +77,8 @@ function createSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     messages: overrides.messages ?? ['The dungeon awaits.'],
     runStatus: overrides.runStatus ?? 'playing',
     score: overrides.score ?? null,
-    turnCount: overrides.turnCount ?? 0
+    turnCount: overrides.turnCount ?? 0,
+    exitExperienceTarget: overrides.exitExperienceTarget ?? 2
   };
 }
 

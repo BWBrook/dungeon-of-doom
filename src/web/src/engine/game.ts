@@ -53,6 +53,7 @@ export class Game {
   private runStatus: RunStatus;
   private score: number | null;
   private turnCount: number;
+  private exitExperienceTarget: number;
 
   constructor(init: GameInit) {
     this.seed = init.seed >>> 0;
@@ -74,19 +75,22 @@ export class Game {
     this.runStatus = 'playing';
     this.score = null;
     this.turnCount = 0;
+    this.exitExperienceTarget = init.exitExperienceTarget;
     this.hero.position = clonePoint(this.level.startPosition);
     this.hero.status.trapped = false;
     this.hero.status.won = false;
     this.hero.status.dead = false;
     this.hero.status.escaped = false;
-    this.hero.lightUses =
-      (this.hero.inventorySlots[16] ?? 0) > 0 ? DEFAULT_LIGHT_USES : this.hero.lightUses;
     this.hero.spellCharges = structuredClone(this.hero.spellCharges);
     this.revealPoint(this.hero.position);
     this.refreshActiveMonster();
   }
 
   static fromSerializedRun(serialized: SerializedRun): Game {
+    if (serialized.version !== 2) {
+      throw new Error('Saved run uses an unsupported format.');
+    }
+
     const game = Object.create(Game.prototype) as Game;
 
     game.seed = serialized.seed >>> 0;
@@ -102,6 +106,7 @@ export class Game {
     game.runStatus = serialized.runStatus;
     game.score = serialized.score;
     game.turnCount = serialized.turnCount;
+    game.exitExperienceTarget = serialized.exitExperienceTarget;
 
     return game;
   }
@@ -229,13 +234,14 @@ export class Game {
       messages: [...this.messages],
       runStatus: this.runStatus,
       score: this.score,
-      turnCount: this.turnCount
+      turnCount: this.turnCount,
+      exitExperienceTarget: this.exitExperienceTarget
     };
   }
 
   serializeRun(): SerializedRun {
     return {
-      version: 1,
+      version: 2,
       seed: this.seed,
       rngState: this.rng.getState(),
       hero: structuredClone(this.hero),
@@ -247,7 +253,8 @@ export class Game {
       activeMonsterId: this.activeMonsterId,
       runStatus: this.runStatus,
       score: this.score,
-      turnCount: this.turnCount
+      turnCount: this.turnCount,
+      exitExperienceTarget: this.exitExperienceTarget
     };
   }
 
@@ -625,7 +632,7 @@ export class Game {
       return;
     }
 
-    if (this.hero.stats.experience < this.hero.baseStats.experience + 1) {
+    if (this.hero.stats.experience < this.exitExperienceTarget) {
       this.hero.position = previousPosition;
       this.pushMessage(result, MESSAGE_TEXT.needExperience);
       result.heroChanged = true;
@@ -828,19 +835,15 @@ export function createGameInit(hero: HeroState, level: LevelDefinition, seed: nu
   return {
     hero: structuredClone(hero),
     level: structuredClone(level),
-    seed
+    seed,
+    exitExperienceTarget: nextWholeExperienceTarget(hero.stats.experience)
   };
 }
 
-export function resetHeroRuntime(hero: HeroState, level: LevelDefinition): HeroState {
+export function prepareHeroForFreshRun(hero: HeroState, level: LevelDefinition): HeroState {
   const runtimeHero = structuredClone(hero);
 
-  runtimeHero.position = clonePoint(level.startPosition);
-  runtimeHero.facing = 'N';
-  runtimeHero.status.trapped = false;
-  runtimeHero.status.won = false;
-  runtimeHero.status.dead = false;
-  runtimeHero.status.escaped = false;
+  resetHeroStageState(runtimeHero, level);
   runtimeHero.lightUses = (runtimeHero.inventorySlots[16] ?? 0) > 0 ? DEFAULT_LIGHT_USES : 0;
   runtimeHero.spellCharges =
     runtimeHero.spellCharges[1] === 0 &&
@@ -853,6 +856,27 @@ export function resetHeroRuntime(hero: HeroState, level: LevelDefinition): HeroS
       : structuredClone(runtimeHero.spellCharges);
 
   return runtimeHero;
+}
+
+export function prepareHeroForNextStage(hero: HeroState, level: LevelDefinition): HeroState {
+  const runtimeHero = structuredClone(hero);
+
+  resetHeroStageState(runtimeHero, level);
+
+  return runtimeHero;
+}
+
+export function nextWholeExperienceTarget(experience: number): number {
+  return Math.floor(experience) + 1;
+}
+
+function resetHeroStageState(hero: HeroState, level: LevelDefinition) {
+  hero.position = clonePoint(level.startPosition);
+  hero.facing = 'N';
+  hero.status.trapped = false;
+  hero.status.won = false;
+  hero.status.dead = false;
+  hero.status.escaped = false;
 }
 
 export function createHeroFromLegacyLoad(hero: HeroState): HeroState {

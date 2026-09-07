@@ -93,7 +93,7 @@ small number of end-to-end mode transitions.
 ### E008 Exit Gate
 
 - Scene: hero reaches exit without full experience gain
-- Verify: exit is refused with the correct gate behavior
+- Verify: exit is refused until the next whole experience value is reached
 
 ### E009 Vase Pickup
 
@@ -196,6 +196,23 @@ small number of end-to-end mode transitions.
   partial light use
 - Verify: modern save/load restores state exactly
 
+### E029 Adventure Carry-Over
+
+- Scene: hero exits a non-final adventure level with depleted resources
+- Verify: the next level preserves current stats, inventory, light, spell
+  charges, gold, treasure, and experience while resetting transient stage state
+
+### E030 Adventure Progression
+
+- Verify: escape enters the between-level state, depth gating is enforced,
+  death ends the adventure, and only the final Idol completes the quest
+
+### E031 Adventure Save Fidelity
+
+- Scene: active and between-level adventure states
+- Verify: save/load restores stage, summaries, root seed, current run, and RNG
+  exactly
+
 ## Canon Divergence Tests
 
 ### D001 Class Count
@@ -248,6 +265,12 @@ These are post-engine tests.
 - Load or paste legacy HERO/LEVEL payloads in Archive mode
 - Inspect or round-trip without mutating Play state
 - Convert a legacy snapshot pair into a modern run explicitly
+
+### B006 Adventure Flow
+
+- Begin the bundled adventure
+- Save and resume during a stage
+- Continue after escape and complete the final Idol outcome
 
 ## Suggested Early Fixtures
 

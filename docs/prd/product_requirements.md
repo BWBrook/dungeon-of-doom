@@ -83,7 +83,9 @@ Do not preserve the weakest parts of the 1984 delivery:
 
 Core capabilities:
 
-- start a run from a modern fixture hero and level
+- begin the bundled three-level adventure or start a single-dungeon run
+- carry the same hero and depleted resources through an adventure
+- start a single run from a modern fixture hero and level
 - import a legacy hero and level
 - move, turn, attack, get, conjure, reveal, heal, save, and resume
 - display messages, status, facing, inventory-derived capability, and win/loss
@@ -215,6 +217,20 @@ Acceptance:
 - the active Play, Editor, Creator, and Archive surfaces remain usable through
   one static browser application, with modern run JSON as the only runtime save
   model
+
+### M8: Adventure Progression
+
+Deliverables:
+
+- one bundled three-level adventure
+- deterministic level transitions and exact hero carry-over
+- adventure-aware modern save and resume
+- stage and quest outcome summaries in Play mode
+
+Acceptance:
+
+- a hero can clear successive levels, retain depleted resources, save or resume
+  at any stage, and recover the Idol in the final dungeon
 
 ## Success Criteria
 

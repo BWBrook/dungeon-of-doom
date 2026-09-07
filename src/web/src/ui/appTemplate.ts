@@ -22,10 +22,21 @@ export const APP_TEMPLATE = String.raw`
       <section data-role="play-mode">
         <section class="toolbar">
           <label>
+            Journey
+            <select data-role="play-kind-select">
+              <option value="adventure">Adventure</option>
+              <option value="single">Single Dungeon</option>
+            </select>
+          </label>
+          <label>
             Hero
             <select data-role="hero-select"></select>
           </label>
-          <label>
+          <label data-role="adventure-field">
+            Adventure
+            <select data-role="adventure-select"></select>
+          </label>
+          <label data-role="level-field" hidden>
             Level
             <select data-role="level-select"></select>
           </label>
@@ -33,9 +44,20 @@ export const APP_TEMPLATE = String.raw`
             Seed
             <input data-role="seed-input" type="number" min="1" step="1" value="1984" />
           </label>
-          <button data-role="start-button" type="button">Start Run</button>
+          <button data-role="start-button" type="button">Begin Adventure</button>
           <button data-role="save-button" type="button">Save Run</button>
           <button data-role="resume-button" type="button">Resume Saved</button>
+        </section>
+        <section class="panel adventure-progress" data-role="adventure-progress" hidden>
+          <div class="adventure-progress-copy">
+            <p class="run-kicker">Quest Progress</p>
+            <h2 data-role="adventure-progress-title">The Lost Idol</h2>
+            <p data-role="adventure-progress-detail"></p>
+          </div>
+          <div class="adventure-stage-readout">
+            <strong data-role="adventure-progress-stage">Level 1 of 3</strong>
+            <div class="adventure-markers" data-role="adventure-progress-markers" aria-label="Adventure stages"></div>
+          </div>
         </section>
         <section class="playframe">
           <div class="canvas-frame">
@@ -77,6 +99,7 @@ export const APP_TEMPLATE = String.raw`
             <p data-role="outcome-body"></p>
           </div>
           <div class="outcome-actions">
+            <button data-role="outcome-continue-button" type="button" hidden>Descend</button>
             <button data-role="outcome-start-button" type="button">Start Run</button>
             <button data-role="outcome-export-hero-button" type="button">Export Hero</button>
             <button data-role="outcome-export-level-button" type="button">Export Level</button>

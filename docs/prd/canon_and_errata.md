@@ -29,7 +29,9 @@ but this file governs the modern rebuild.
   Wanderer, Cleric, Mage, Warrior, Barbarian.
 - The actual implemented spell set is six spells.
 - Player controls in canon are `B`, `N`, `M`, `A`, `G`, `P`, `R`, `C`, `S`.
-- The game is a single-hero, single-run dungeon crawler with authored levels.
+- The game follows one hero through a short series of authored dungeon levels.
+- Three levels form the bundled modern quest; the Idol appears only in its
+  final level.
 
 ## Canon Rules To Preserve
 
@@ -37,7 +39,13 @@ but this file governs the modern rebuild.
 - Reveal requires light and consumes one light use.
 - Monsters revealed by light are activated.
 - Only the nearest monster should actively chase at a time.
-- Exit requires at least one full experience increase above the loaded baseline.
+- Each level sets its exit target to the next whole experience value above the
+  hero's experience on entry.
+- The next level cannot be deeper than the hero's current experience.
+- Current stats, inventory, gold, treasure, spell charges, and light uses carry
+  unchanged between levels.
+- Entering the next level resets position, facing, and transient status only; it
+  does not heal the hero or replenish any resource.
 - Traps are sticky and can delay movement until the hero breaks free.
 - Potions and salves restore strength and vitality to starting values.
 - Spells I-III are sourced from the Necronomicon.
@@ -54,6 +62,8 @@ but this file governs the modern rebuild.
   tile side effects.
 - The engine should preserve slot-based inventory semantics because the BASIC
   formulas address item ranges directly.
+- Single-dungeon simulation and adventure progression are separate engine
+  concerns. The renderer owns neither.
 
 ## Errata And Corrections
 

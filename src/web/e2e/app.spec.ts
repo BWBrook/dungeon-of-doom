@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { clericStarter, createLegacyFriendlyLevelFixture } from '../src/engine/fixtures';
+import { Adventure } from '../src/adventure/model';
+import { lostIdolAdventure } from '../src/content/adventures';
+import {
+  clericStarter,
+  createLegacyFriendlyLevelFixture,
+  warriorStarter
+} from '../src/engine/fixtures';
 import { tileKindToLegacyCode } from '../src/engine/catalog';
 import type { BaseTileKind, LevelCell, LevelDefinition } from '../src/engine/types';
 import {
@@ -10,6 +16,7 @@ import {
   parseHeroString,
   parseLevelString
 } from '../src/persist/legacy';
+import { serializePlaySession } from '../src/play/session';
 
 async function resetPage(page: Page) {
   await page.goto('/');
@@ -30,6 +37,59 @@ async function openCreator(page: Page) {
 async function openArchive(page: Page) {
   await page.getByRole('button', { name: 'Archive' }).click();
   await expect(page.locator('[data-role="archive-mode"]')).toBeVisible();
+}
+
+async function chooseSingleLevel(page: Page, levelId: string) {
+  await page.locator('[data-role="play-kind-select"]').selectOption('single');
+  await page.locator('[data-role="level-select"]').selectOption(levelId);
+}
+
+async function installSavedSession(
+  page: Page,
+  session: ReturnType<typeof serializePlaySession>
+) {
+  await page.evaluate((value) => {
+    localStorage.setItem('dungeon-of-doom:play-session', JSON.stringify(value));
+  }, session);
+  await page.reload();
+}
+
+function escapedAdventure(adventure: Adventure): Adventure {
+  const save = adventure.serialize();
+
+  save.status = 'playing';
+  save.currentRun.hero.stats.experience = Math.max(
+    save.currentRun.exitExperienceTarget,
+    save.currentRun.hero.stats.experience
+  );
+  save.currentRun.hero.status.escaped = true;
+  save.currentRun.runStatus = 'escaped';
+
+  const escaped = Adventure.fromSerialized(save, lostIdolAdventure);
+
+  escaped.step({ type: 'wait' });
+
+  return escaped;
+}
+
+function adventureAtFinalVictory(): Adventure {
+  let adventure = new Adventure({ hero: warriorStarter, definition: lostIdolAdventure, seed: 1984 });
+
+  adventure = escapedAdventure(adventure);
+  adventure.continueToNextLevel();
+  adventure = escapedAdventure(adventure);
+  adventure.continueToNextLevel();
+
+  const save = adventure.serialize();
+
+  save.currentRun.runStatus = 'won';
+  save.currentRun.hero.status.won = true;
+  save.currentRun.hero.treasure = 3;
+  save.currentRun.score = 321;
+  adventure = Adventure.fromSerialized(save, lostIdolAdventure);
+  adventure.step({ type: 'wait' });
+
+  return adventure;
 }
 
 async function chooseEditorTool(page: Page, name: string) {
@@ -84,7 +144,7 @@ test('runs the core browser checkpoint loop and resumes a saved run', async ({ p
   await resetPage(page);
 
   await page.locator('[data-role="hero-select"]').selectOption('cleric_starter');
-  await page.locator('[data-role="level-select"]').selectOption('mixed_demo_level');
+  await chooseSingleLevel(page, 'mixed_demo_level');
   await page.getByRole('button', { name: 'Start Run' }).click();
 
   await expect(page.getByRole('heading', { name: 'Dungeon of Doom' })).toBeVisible();
@@ -107,7 +167,7 @@ test('uses the polished command surface and reports playable text state', async 
   await resetPage(page);
 
   await page.locator('[data-role="hero-select"]').selectOption('warrior_starter');
-  await page.locator('[data-role="level-select"]').selectOption('mixed_demo_level');
+  await chooseSingleLevel(page, 'mixed_demo_level');
   await page.getByRole('button', { name: 'Start Run' }).click();
 
   await expect(page.locator('[data-role="run-headline"]')).toContainText('Rogan');
@@ -186,6 +246,95 @@ test('persists sensory toggles and reports them for browser playtests', async ({
   );
 });
 
+test('begins, saves, and resumes the bundled adventure', async ({ page }) => {
+  await resetPage(page);
+
+  await expect(page.locator('[data-role="play-kind-select"]')).toHaveValue('adventure');
+  await expect(page.locator('[data-role="level-field"]')).toBeHidden();
+  await page.getByRole('button', { name: 'Begin Adventure' }).click();
+
+  await expect(page.locator('[data-role="adventure-progress"]')).toBeVisible();
+  await expect(page.locator('[data-role="adventure-progress-title"]')).toHaveText(
+    'The Lost Idol'
+  );
+  await expect(page.locator('[data-role="adventure-progress-stage"]')).toHaveText(
+    'Level 1 of 3'
+  );
+
+  await clickCommand(page, 'wait');
+  await clickCommand(page, 'save');
+  await page.reload();
+  await page.getByRole('button', { name: 'Resume Saved' }).click();
+
+  await expect(page.locator('[data-role="save-status"]')).toContainText(
+    'Resumed The Lost Idol, level 1'
+  );
+
+  const state = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    sessionKind: string;
+    adventure: { status: string; stage: number; stageCount: number };
+  };
+
+  expect(state.sessionKind).toBe('adventure');
+  expect(state.adventure).toMatchObject({ status: 'playing', stage: 1, stageCount: 3 });
+});
+
+test('resumes between levels and carries depleted resources into level two', async ({ page }) => {
+  await resetPage(page);
+
+  const adventure = new Adventure({ hero: warriorStarter, definition: lostIdolAdventure, seed: 1984 });
+  const depleted = adventure.serialize();
+
+  depleted.currentRun.hero.lightUses = 3;
+  depleted.currentRun.hero.stats.strength = 4.5;
+  const betweenLevels = escapedAdventure(
+    Adventure.fromSerialized(depleted, lostIdolAdventure)
+  );
+
+  await installSavedSession(
+    page,
+    serializePlaySession({ kind: 'adventure', adventure: betweenLevels })
+  );
+  await page.getByRole('button', { name: 'Resume Saved' }).click();
+
+  await expect(page.locator('[data-role="outcome-title"]')).toHaveText(
+    'The Way Below Opens'
+  );
+  await page.getByRole('button', { name: 'Descend To Level 2' }).click();
+  await expect(page.locator('[data-role="adventure-progress-stage"]')).toHaveText(
+    'Level 2 of 3'
+  );
+
+  const state = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    hero: { light: number; strength: number };
+    adventure: { status: string; stage: number };
+  };
+
+  expect(state.adventure).toMatchObject({ status: 'playing', stage: 2 });
+  expect(state.hero.light).toBe(3);
+  expect(state.hero.strength).toBe(4);
+});
+
+test('shows the completed quest outcome for a final Idol victory', async ({ page }) => {
+  await resetPage(page);
+
+  const adventure = adventureAtFinalVictory();
+
+  await installSavedSession(page, serializePlaySession({ kind: 'adventure', adventure }));
+  await page.getByRole('button', { name: 'Resume Saved' }).click();
+
+  await expect(page.locator('[data-role="outcome-title"]')).toHaveText(
+    'The Lost Idol Is Thine'
+  );
+  await expect(page.locator('[data-role="outcome-body"]')).toContainText('Quest score 321');
+
+  const state = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
+    adventure: { status: string; stage: number };
+  };
+
+  expect(state.adventure).toMatchObject({ status: 'won', stage: 3 });
+});
+
 test('imports legacy hero and level payloads, starts a run, and exports them again', async ({
   page
 }) => {
@@ -224,7 +373,7 @@ test('opens conjure with C and casts from the spell chooser', async ({ page }) =
   await resetPage(page);
 
   await page.locator('[data-role="hero-select"]').selectOption('cleric_starter');
-  await page.locator('[data-role="level-select"]').selectOption('mixed_demo_level');
+  await chooseSingleLevel(page, 'mixed_demo_level');
   await page.getByRole('button', { name: 'Start Run' }).click();
   await page.keyboard.press('C');
 
@@ -322,7 +471,7 @@ test('converts an archive snapshot pair into a modern playable run', async ({ pa
 test('archive errors do not mutate the active play run', async ({ page }) => {
   await resetPage(page);
 
-  await page.getByRole('button', { name: 'Start Run' }).click();
+  await page.getByRole('button', { name: 'Begin Adventure' }).click();
 
   const before = await page.evaluate(() => window.render_game_to_text?.() ?? '');
 
@@ -346,7 +495,7 @@ test('archive errors do not mutate the active play run', async ({ page }) => {
 test('can win immediately on the idol fixture', async ({ page }) => {
   await resetPage(page);
 
-  await page.locator('[data-role="level-select"]').selectOption('idol_finish_level');
+  await chooseSingleLevel(page, 'idol_finish_level');
   await page.getByRole('button', { name: 'Start Run' }).click();
   await page.keyboard.press('G');
 
@@ -572,7 +721,7 @@ test('keeps the upgraded shell usable on a narrow viewport', async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 860 });
   await resetPage(page);
 
-  await page.getByRole('button', { name: 'Start Run' }).click();
+  await page.getByRole('button', { name: 'Begin Adventure' }).click();
   await expect(page.locator('[data-role="canvas"]')).toBeVisible();
   await expect(page.locator('[data-command="moveForward"]')).toBeVisible();
   await expect(page.locator('[data-role="sound-toggle"]')).toBeVisible();

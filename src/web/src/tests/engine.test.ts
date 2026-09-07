@@ -8,7 +8,13 @@ import {
   tileKindToLegacyCode
 } from '../engine/catalog';
 import { warriorStarter } from '../engine/fixtures';
-import { Game, createGameInit, resetHeroRuntime } from '../engine/game';
+import {
+  Game,
+  createGameInit,
+  nextWholeExperienceTarget,
+  prepareHeroForFreshRun,
+  prepareHeroForNextStage
+} from '../engine/game';
 import type { BaseTileKind, HeroState, LevelCell, LevelDefinition, MonsterSpawn, Stats } from '../engine/types';
 
 function createStats(overrides: Partial<Stats> = {}): Stats {
@@ -303,7 +309,7 @@ describe('engine rules', () => {
   });
 
   it('serializes and restores modern runs faithfully', () => {
-    const hero = resetHeroRuntime(structuredClone(warriorStarter), createLevel());
+    const hero = prepareHeroForFreshRun(structuredClone(warriorStarter), createLevel());
     const game = createGame(hero, createLevel({ x: 7, y: 7 }, [{ x: 7, y: 6, kind: 'trap' }]), 12);
 
     game.step({ type: 'moveForward' });
@@ -311,5 +317,39 @@ describe('engine rules', () => {
     const restored = Game.fromSerializedRun(game.serializeRun());
 
     expect(restored.snapshot()).toEqual(game.snapshot());
+  });
+
+  it('gates exits at the next whole experience value', () => {
+    const hero = createHero({ stats: createStats({ experience: 1.35 }) });
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [{ x: 7, y: 6, kind: 'exit' }]
+    );
+    const game = createGame(hero, level);
+
+    expect(game.snapshot().exitExperienceTarget).toBe(2);
+    game.step({ type: 'moveForward' });
+    expect(game.snapshot().runStatus).toBe('playing');
+    expect(game.snapshot().messages.at(-1)).toBe('YOU NEED EXPERIENCE');
+    expect(nextWholeExperienceTarget(2)).toBe(3);
+  });
+
+  it('prepares a next-stage hero without replenishing depleted resources', () => {
+    const hero = createHero({
+      stats: createStats({ strength: 4, vitality: 6, experience: 2.2 }),
+      inventorySlots: { 16: 1, 17: 2 },
+      lightUses: 3,
+      spellCharges: { 1: 1, 2: 0, 3: 2, 4: 0, 5: 0, 6: 0 },
+      status: { trapped: true, won: false, dead: false, escaped: true }
+    });
+    const level = createLevel({ x: 2, y: 3 });
+    const prepared = prepareHeroForNextStage(hero, level);
+
+    expect(prepared.position).toEqual({ x: 2, y: 3 });
+    expect(prepared.facing).toBe('N');
+    expect(prepared.stats).toEqual(hero.stats);
+    expect(prepared.lightUses).toBe(3);
+    expect(prepared.spellCharges).toEqual(hero.spellCharges);
+    expect(prepared.status).toEqual(createHeroStatus());
   });
 });
