@@ -40,6 +40,7 @@ export interface RunPresentation {
 
 export interface RunPresentationOptions {
   saveAllowedAfterRun?: boolean;
+  turnMessages?: string[];
 }
 
 const COMMANDS: Array<Omit<CommandState, 'enabled' | 'hint'>> = [
@@ -83,7 +84,11 @@ export function createRunPresentation(
   const hasRestorative = (hero.inventorySlots[23] ?? 0) > 0 || (hero.inventorySlots[24] ?? 0) > 0;
   const hasMagicSource = (hero.inventorySlots[17] ?? 0) > 0 || (hero.inventorySlots[18] ?? 0) > 0;
   const hasLight = hero.lightUses > 0;
-  const latestMessage = snapshot.messages.at(-1) ?? fallbackMessages.at(-1) ?? 'The dungeon awaits.';
+  const turnMessages = options.turnMessages ?? [];
+  const latestMessage =
+    turnMessages.length > 0
+      ? turnMessages.join(' \u00b7 ')
+      : snapshot.messages.at(-1) ?? fallbackMessages.at(-1) ?? 'The dungeon awaits.';
 
   return {
     headline: `${hero.name} the ${CLASS_LABELS[hero.classId]}`,

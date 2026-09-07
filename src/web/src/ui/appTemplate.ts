@@ -1,24 +1,23 @@
 export const APP_TEMPLATE = String.raw`
     <main class="shell">
-      <section class="hero-copy">
-        <p class="eyebrow">Lamp-lit terminal edition</p>
-        <h1>Dungeon of Doom</h1>
-        <p class="lede">
-          Beneath ruined Crekkan, the engine keeps the rules and the terminal keeps the torch.
-        </p>
-      </section>
-      <section class="top-chrome">
-        <nav class="mode-switch" aria-label="Application mode">
-          <button data-role="mode-play-button" type="button">Play</button>
-          <button data-role="mode-editor-button" type="button">Editor</button>
-          <button data-role="mode-creator-button" type="button">Creator</button>
-          <button data-role="mode-archive-button" type="button">Archive</button>
-        </nav>
-        <div class="sensory-controls" aria-label="Sensory controls">
-          <button data-role="sound-toggle" type="button" aria-pressed="true">Sound On</button>
-          <button data-role="motion-toggle" type="button" aria-pressed="true">Motion On</button>
+      <header class="masthead">
+        <div class="hero-copy">
+          <p class="eyebrow">Lamp-lit terminal edition</p>
+          <h1>Dungeon of Doom</h1>
         </div>
-      </section>
+        <div class="top-chrome">
+          <nav class="mode-switch" aria-label="Application mode">
+            <button data-role="mode-play-button" type="button">Play</button>
+            <button data-role="mode-editor-button" type="button">Editor</button>
+            <button data-role="mode-creator-button" type="button">Creator</button>
+            <button data-role="mode-archive-button" type="button">Archive</button>
+          </nav>
+          <div class="sensory-controls" aria-label="Sensory controls">
+            <button data-role="sound-toggle" type="button" aria-pressed="true">Sound On</button>
+            <button data-role="motion-toggle" type="button" aria-pressed="true">Motion On</button>
+          </div>
+        </div>
+      </header>
       <section data-role="play-mode">
         <section class="toolbar">
           <label>
@@ -64,6 +63,19 @@ export const APP_TEMPLATE = String.raw`
             <canvas data-role="canvas" aria-label="Dungeon grid"></canvas>
           </div>
           <aside class="sidebar">
+            <section class="panel outcome-panel" data-role="outcome-panel" hidden>
+              <div>
+                <p class="run-kicker" data-role="outcome-subline">Run complete</p>
+                <h2 data-role="outcome-title">Outcome</h2>
+                <p data-role="outcome-body"></p>
+              </div>
+              <div class="outcome-actions">
+                <button data-role="outcome-continue-button" type="button" hidden>Descend</button>
+                <button data-role="outcome-start-button" type="button">Start Run</button>
+                <button data-role="outcome-export-hero-button" type="button">Export Hero</button>
+                <button data-role="outcome-export-level-button" type="button">Export Level</button>
+              </div>
+            </section>
             <section class="panel run-brief">
               <p class="run-kicker" data-role="run-subline">Select a hero and level.</p>
               <h2 data-role="run-headline">Choose thy quest</h2>
@@ -91,19 +103,6 @@ export const APP_TEMPLATE = String.raw`
               <ol class="messages" data-role="messages" aria-live="polite"></ol>
             </section>
           </aside>
-        </section>
-        <section class="panel outcome-panel" data-role="outcome-panel" hidden>
-          <div>
-            <p class="run-kicker" data-role="outcome-subline">Run complete</p>
-            <h2 data-role="outcome-title">Outcome</h2>
-            <p data-role="outcome-body"></p>
-          </div>
-          <div class="outcome-actions">
-            <button data-role="outcome-continue-button" type="button" hidden>Descend</button>
-            <button data-role="outcome-start-button" type="button">Start Run</button>
-            <button data-role="outcome-export-hero-button" type="button">Export Hero</button>
-            <button data-role="outcome-export-level-button" type="button">Export Level</button>
-          </div>
         </section>
         <section class="panel legacy-panel" aria-labelledby="legacy-heading">
           <div class="legacy-header">

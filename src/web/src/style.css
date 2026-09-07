@@ -120,34 +120,32 @@ button:active:not(:disabled) {
 .shell {
   width: min(1180px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 2rem 0 2.5rem;
+  padding: 1.25rem 0 2.5rem;
 }
 
-.hero-copy {
-  margin-bottom: 1.25rem;
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.5rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
 .eyebrow {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.3rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--accent-gold);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
 }
 
 .hero-copy h1 {
   margin: 0;
   font-family: "Palatino Linotype", "Book Antiqua", "Iowan Old Style", serif;
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  font-size: clamp(1.9rem, 3.2vw, 2.6rem);
   line-height: 0.95;
   letter-spacing: 0.02em;
-}
-
-.lede {
-  max-width: 40rem;
-  margin: 0.9rem 0 0;
-  color: var(--text-dim);
-  font-size: 1.02rem;
 }
 
 .top-chrome {
@@ -155,8 +153,7 @@ button:active:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.8rem;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+  justify-content: flex-end;
 }
 
 .mode-switch {
@@ -428,17 +425,23 @@ button:active:not(:disabled) {
 
 .hud {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
   margin: 0;
 }
 
 .hud-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.75rem;
-  padding: 0.55rem 0.7rem;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.5rem 0.65rem;
   border-radius: 0.8rem;
   background: rgba(10, 10, 9, 0.34);
+}
+
+.hud .empty-state {
+  grid-column: 1 / -1;
 }
 
 .hud-row dt,
@@ -589,12 +592,12 @@ button:active:not(:disabled) {
 }
 
 .outcome-panel {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-  border-color: rgba(215, 173, 85, 0.32);
+  display: grid;
+  gap: 0.9rem;
+  border-color: rgba(215, 173, 85, 0.42);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 211, 93, 0.14), transparent 12rem),
+    linear-gradient(180deg, rgba(58, 39, 22, 0.96), var(--bg-panel-strong));
 }
 
 .outcome-panel[hidden] {

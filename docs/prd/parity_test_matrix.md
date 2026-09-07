@@ -148,7 +148,14 @@ small number of end-to-end mode transitions.
 ### E019 Item Breakage
 
 - Scene: monster attack triggers breakage path
-- Verify: the selected occupied slot is cleared correctly
+- Verify: the selected occupied slot is cleared correctly and the message
+  names the item; a high-luck hero keeps their gear across many seeds
+
+### E019b Bump Wakes Monster
+
+- Scene: hero moves into a dormant monster's square
+- Verify: the hero stays put, the monster becomes active, and it attacks that
+  same turn
 
 ### E020 Restorative Use
 

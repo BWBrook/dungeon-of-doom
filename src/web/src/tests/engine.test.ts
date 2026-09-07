@@ -257,10 +257,55 @@ describe('engine rules', () => {
 
       if ((game.snapshot().hero.inventorySlots[1] ?? 0) === 0) {
         foundSeed = seed;
+        expect(game.snapshot().messages).toContain('BROKEN THY 2 HAND SWORD');
       }
     }
 
     expect(foundSeed).not.toBeNull();
+  });
+
+  it('lets luck save gear from breaking', () => {
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [],
+      [{ id: 'guard', position: { x: 7, y: 6 }, legacyTileCode: 111 }]
+    );
+
+    for (let seed = 1; seed < 200; seed += 1) {
+      const hero = createHero({
+        stats: createStats({ agility: 0, luck: 9 }),
+        inventorySlots: { 1: 5, 9: 5, 16: 1 },
+        lightUses: DEFAULT_LIGHT_USES
+      });
+      const game = createGame(hero, level, seed);
+
+      game.step({ type: 'reveal' });
+      game.step({ type: 'wait' });
+      game.step({ type: 'wait' });
+
+      expect(game.snapshot().hero.inventorySlots[1]).toBe(5);
+      expect(game.snapshot().hero.inventorySlots[9]).toBe(5);
+    }
+  });
+
+  it('wakes a dormant monster when the hero walks into it', () => {
+    const hero = createHero({ facing: 'N' });
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [],
+      [{ id: 'lurker', position: { x: 7, y: 6 }, legacyTileCode: 111 }]
+    );
+    const game = createGame(hero, level, 11);
+
+    expect(game.snapshot().activeMonster).toBeNull();
+
+    const result = game.step({ type: 'moveForward' });
+    const snapshot = game.snapshot();
+
+    expect(snapshot.hero.position).toEqual({ x: 7, y: 7 });
+    expect(result.messages[0]).toBe('A MONSTER BLOCKS THE WAY');
+    expect(snapshot.activeMonster?.id).toBe('lurker');
+    expect(snapshot.messages).toContain('HIT THEE!!');
   });
 
   it('uses restoratives and restores baseline stats', () => {

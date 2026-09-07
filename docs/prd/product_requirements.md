@@ -232,6 +232,21 @@ Acceptance:
 - a hero can clear successive levels, retain depleted resources, save or resume
   at any stage, and recover the Idol in the final dungeon
 
+### M9: Play Feel And Legibility
+
+Deliverables:
+
+- luck-gated gear breakage so a full kit survives a normal level
+- dormant monsters wake when the hero walks into them
+- the event line reports the whole turn in order, player result first
+- play-first layout: compact masthead, two-column status, outcome panel
+  beside the map, canvas that fills its frame
+
+Acceptance:
+
+- a first-time player can read what happened each turn without scanning the
+  log, and finishes a level with most of their gear intact
+
 ## Success Criteria
 
 - The rules are understandable and stable enough that implementation decisions

@@ -110,13 +110,15 @@ installed dependencies are retained for the next agent.
 
 ## Direction and working style
 
-The current endpoint is a coherent playable revival through M8. There is no
-approved M9 in the current PRD. Recommended restart: read the M8 closeout
-commit, confirm the current baseline, and play the adventure as a player.
-Then recommend one substantive next tranche based on actual friction or
-missing value. Treat that recommendation as proposed scope, not inherited
-authorization. More content, balance changes, or restructuring should earn
-their place through that assessment.
+The current endpoint is a coherent playable revival through M9 (Play Feel
+And Legibility, September 2026; see `progress.md`). Barry's stated direction:
+fully land the modern retro-clone first, then add expansion content in a
+measured way, eventually letting a player choose vanilla or expanded. The
+expansion menu lives in the C64 repo's `docs/enhancement_wishlist.md` and the
+book's "Expanding the game" chapter in the transcript. Recommended restart:
+confirm the baseline, play the adventure as a player, and recommend one
+substantive next tranche based on actual friction or missing value. Treat that
+recommendation as proposed scope, not inherited authorization.
 
 Use these personal skills:
 

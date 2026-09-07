@@ -107,6 +107,14 @@ should not define the modern runtime save model.
 ## Intentional Modernizations
 
 - Replace cassette-era loading and saving with integrated browser flows.
+- Gear breakage keeps the BASIC roll (one chance in monster power per monster
+  hit, lowest occupied slot first) but adds a luck save using the trap-release
+  idiom: the item holds when `int(rnd*8+1) < luck`. Playtesting showed the
+  raw rate destroying a Warrior's whole kit on level one.
+- Walking into a dormant monster reveals and activates it, per the Book of
+  Lore ("monsters will attack"); the archival BASIC only refused the move.
+- Break messages name the item from the item catalog. The BASIC's `w$` table
+  is misaligned with the item list from slot 3 onward and is not reproduced.
 - Preserve the original rules where they are legible and defensible.
 - Prefer semantic messages and validation over silent BASIC failure modes.
 - Keep legacy import/export as an archival bridge, not as the primary runtime

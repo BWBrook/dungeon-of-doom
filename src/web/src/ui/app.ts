@@ -394,6 +394,7 @@ export function mountApp(root: HTMLDivElement) {
   let lastSnapshot: Snapshot | null = null;
   let lastAdventureSnapshot: AdventureSnapshot | null = null;
   let lastPresentation: RunPresentation = createRunPresentation(null, null);
+  let lastTurnMessages: string[] = [];
   let lastChangedCells: Array<{ x: number; y: number }> = [];
   let lastEffectKind: VisualEffectKind = 'idle';
   let lastEffectStartedAtMs = 0;
@@ -482,7 +483,8 @@ export function mountApp(root: HTMLDivElement) {
     const level = currentSerializedRun(playSession).level;
     const adventureSnapshot = currentAdventureSnapshot(playSession);
     const presentation = createRunPresentation(snapshot, level, appMessages, {
-      saveAllowedAfterRun: adventureSnapshot?.status === 'betweenLevels'
+      saveAllowedAfterRun: adventureSnapshot?.status === 'betweenLevels',
+      turnMessages: lastTurnMessages
     });
 
     lastSnapshot = snapshot;
@@ -772,6 +774,8 @@ export function mountApp(root: HTMLDivElement) {
 
   function startRun() {
     playSession = buildNewPlaySession();
+    appMessages = [];
+    lastTurnMessages = [];
     lastChangedCells = [];
     lastEffectKind = 'idle';
     lastEffectStartedAtMs = uiClockMs;
@@ -809,6 +813,8 @@ export function mountApp(root: HTMLDivElement) {
     try {
       playSession = restorePlaySession(serialized);
       playKindSelect.value = playSession.kind;
+      appMessages = [];
+      lastTurnMessages = [];
       lastChangedCells = [];
       lastEffectKind = 'idle';
       lastEffectStartedAtMs = uiClockMs;
@@ -834,6 +840,7 @@ export function mountApp(root: HTMLDivElement) {
     const result = stepPlaySession(playSession, action);
     const snapshot = currentRunSnapshot(playSession);
 
+    lastTurnMessages = result.messages;
     lastChangedCells = result.cellsChanged;
     lastEffectKind = effectKindFromResult(action, result, snapshot.runStatus);
     lastEffectStartedAtMs = uiClockMs;
@@ -851,6 +858,7 @@ export function mountApp(root: HTMLDivElement) {
       playSession.adventure.continueToNextLevel();
       const adventure = playSession.adventure.snapshot();
 
+      lastTurnMessages = [];
       lastChangedCells = [];
       lastEffectKind = 'idle';
       lastEffectStartedAtMs = uiClockMs;

@@ -143,6 +143,16 @@ describe('run presentation', () => {
     expect(snapshot.messages).toEqual(messages);
   });
 
+  it('shows every message from the current turn in order', () => {
+    const snapshot = createSnapshot({ messages: ['MISSED!', 'A GOOD BLOW', 'HIT THEE!!'] });
+    const presentation = createRunPresentation(snapshot, createLevel(), [], {
+      turnMessages: ['A GOOD BLOW', 'HIT THEE!!']
+    });
+
+    expect(presentation.latestMessage).toBe('A GOOD BLOW \u00b7 HIT THEE!!');
+    expect(presentation.logRows).toEqual(['MISSED!', 'A GOOD BLOW', 'HIT THEE!!']);
+  });
+
   it('reports terminal outcomes and disables commands after run end', () => {
     for (const outcome of ['won', 'escaped', 'dead'] as const) {
       const presentation = createRunPresentation(

@@ -79,34 +79,31 @@ export const SPELL_NAMES: Record<SpellSlot, string> = {
   6: 'Healing'
 };
 
-export const ITEM_CATALOG: Record<
-  number,
-  { name: string; shortName: string; stackable: boolean }
-> = {
-  1: { name: '2 hand sword', shortName: 'gr sword', stackable: false },
-  2: { name: 'broadsword', shortName: 'sword', stackable: false },
-  3: { name: 'shortsword', shortName: 'axe', stackable: false },
-  4: { name: 'axe', shortName: 'mace', stackable: false },
-  5: { name: 'mace', shortName: 'flail', stackable: false },
-  6: { name: 'flail', shortName: 'dagger', stackable: false },
-  7: { name: 'dagger', shortName: 'armour', stackable: false },
-  8: { name: 'gauntlet', shortName: 'armour', stackable: false },
-  9: { name: 'heavy armour', shortName: 'armour', stackable: false },
-  10: { name: 'chain armour', shortName: 'helmet', stackable: false },
-  11: { name: 'leather armour', shortName: 'headpc.', stackable: false },
-  12: { name: 'heavy robe', shortName: 'heavy robe', stackable: false },
-  13: { name: 'gold helmet', shortName: 'gold helmet', stackable: false },
-  14: { name: 'headpiece', shortName: 'headpiece', stackable: false },
-  15: { name: 'shield', shortName: 'shield', stackable: false },
-  16: { name: 'torch', shortName: 'torch', stackable: false },
-  17: { name: 'necronomicon', shortName: 'necronomicon', stackable: false },
-  18: { name: 'scrolls', shortName: 'scrolls', stackable: false },
-  19: { name: 'ring', shortName: 'ring', stackable: false },
-  20: { name: 'mystic amulet', shortName: 'amulet', stackable: false },
-  21: { name: 'sash', shortName: 'sash', stackable: false },
-  22: { name: 'cloak', shortName: 'cloak', stackable: false },
-  23: { name: 'healing salve', shortName: 'salve', stackable: true },
-  24: { name: 'potions', shortName: 'potion', stackable: true }
+export const ITEM_CATALOG: Record<number, { name: string; stackable: boolean }> = {
+  1: { name: '2 hand sword', stackable: false },
+  2: { name: 'broadsword', stackable: false },
+  3: { name: 'shortsword', stackable: false },
+  4: { name: 'axe', stackable: false },
+  5: { name: 'mace', stackable: false },
+  6: { name: 'flail', stackable: false },
+  7: { name: 'dagger', stackable: false },
+  8: { name: 'gauntlet', stackable: false },
+  9: { name: 'heavy armour', stackable: false },
+  10: { name: 'chain armour', stackable: false },
+  11: { name: 'leather armour', stackable: false },
+  12: { name: 'heavy robe', stackable: false },
+  13: { name: 'gold helmet', stackable: false },
+  14: { name: 'headpiece', stackable: false },
+  15: { name: 'shield', stackable: false },
+  16: { name: 'torch', stackable: false },
+  17: { name: 'necronomicon', stackable: false },
+  18: { name: 'scrolls', stackable: false },
+  19: { name: 'ring', stackable: false },
+  20: { name: 'mystic amulet', stackable: false },
+  21: { name: 'sash', stackable: false },
+  22: { name: 'cloak', stackable: false },
+  23: { name: 'healing salve', stackable: true },
+  24: { name: 'potions', stackable: true }
 };
 
 export function createEmptyInventorySlots(): Record<number, number> {

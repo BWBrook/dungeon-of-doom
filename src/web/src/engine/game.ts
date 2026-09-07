@@ -302,6 +302,7 @@ export class Game {
     const blockingMonster = this.getMonsterAt(target);
 
     if (blockingMonster) {
+      this.revealPoint(target, result);
       this.pushMessage(result, MESSAGE_TEXT.blockedByMonster);
       return;
     }
@@ -608,13 +609,13 @@ export class Game {
 
     const breakRoll = this.rng.int(1, monsterPowerFromLegacyCode(monster.legacyTileCode));
 
-    if (breakRoll === 1) {
+    if (breakRoll === 1 && this.rng.int(1, 8) >= this.hero.stats.luck) {
       for (const slot of BREAKABLE_SLOTS) {
         if ((this.hero.inventorySlots[slot] ?? 0) > 0) {
           this.hero.inventorySlots[slot] = 0;
           this.pushMessage(
             result,
-            `${MESSAGE_TEXT.broken} ${(ITEM_CATALOG[slot]?.shortName ?? 'GEAR').toUpperCase()}`
+            `${MESSAGE_TEXT.broken} ${(ITEM_CATALOG[slot]?.name ?? 'GEAR').toUpperCase()}`
           );
           result.heroChanged = true;
           break;

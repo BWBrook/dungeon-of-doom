@@ -32,6 +32,20 @@ Primary checks from `src/web` are `pnpm typecheck`, `pnpm lint`, `pnpm test`,
 
 No known M8 blockers remain.
 
+## M9 Play Feel And Legibility
+
+- Handed from Codex to Claude on 7 September 2026. A first playtest (Warrior,
+  seed 1984) lost three items on level one and could not read hit results
+  because the monster's reply always displaced them.
+- Engine: gear breakage now has a luck save using the trap-release roll;
+  walking into a dormant monster wakes it; break messages use catalog names.
+- Presentation: the event line shows every message from the current turn in
+  order; stale app messages clear when a run starts or resumes.
+- Layout: compact masthead, two-column status, outcome panel at the top of
+  the sidebar, dungeon canvas scales to fill its frame (up to 720px).
+- `.claude/launch.json` starts the dev server on port 5174 for the in-app
+  browser preview.
+
 ## Successor Handover
 
 - `HANDOVER.md` is the compact entry point for a fresh task.

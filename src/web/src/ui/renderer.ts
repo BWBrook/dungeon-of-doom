@@ -17,6 +17,8 @@ export interface RenderEffects {
   motionEnabled: boolean;
 }
 
+const MAX_DISPLAY_PIXELS = GRID_PIXELS * 1.5;
+
 const DEFAULT_RENDER_EFFECTS: RenderEffects = {
   changedCells: [],
   effect: 'idle',
@@ -42,8 +44,7 @@ export class DungeonRenderer {
 
   resize() {
     const scale = window.devicePixelRatio || 1;
-    const availableWidth = this.canvas.parentElement?.clientWidth ?? GRID_PIXELS;
-    const displayPixels = Math.max(1, Math.min(GRID_PIXELS, availableWidth));
+    const displayPixels = Math.max(1, Math.min(MAX_DISPLAY_PIXELS, this.availableWidth()));
     const logicalScale = (displayPixels / GRID_PIXELS) * scale;
 
     this.canvas.width = displayPixels * scale;
@@ -52,6 +53,18 @@ export class DungeonRenderer {
     this.canvas.style.height = `${displayPixels}px`;
     this.context.setTransform(logicalScale, 0, 0, logicalScale, 0, 0);
     this.context.imageSmoothingEnabled = false;
+  }
+
+  private availableWidth(): number {
+    const parent = this.canvas.parentElement;
+
+    if (!parent) {
+      return GRID_PIXELS;
+    }
+
+    const style = getComputedStyle(parent);
+
+    return parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   }
 
   draw(snapshot: Snapshot, effects: RenderEffects = DEFAULT_RENDER_EFFECTS) {
