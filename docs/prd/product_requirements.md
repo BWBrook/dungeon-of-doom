@@ -270,6 +270,21 @@ Acceptance:
 - a player can design a series of levels, assemble them into a quest, take
   any hero through it, save mid-quest, and resume, all without leaving the app
 
+### M11: Balance Harness
+
+Deliverables:
+
+- headless auto-play harness over the real engine and adventure classes
+- one archetype hero per class built through the Creator rules
+- a CLI (`pnpm balance`) that reports win rate, death stage, gear loss, and
+  restorative use per class across seeds, as a markdown table
+- a findings note interpreting the first run
+
+Acceptance:
+
+- balance claims about the bundled quest cite the harness rather than a
+  single playthrough
+
 ## Success Criteria
 
 - The rules are understandable and stable enough that implementation decisions

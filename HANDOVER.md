@@ -110,9 +110,10 @@ installed dependencies are retained for the next agent.
 
 ## Direction and working style
 
-The current endpoint is a coherent playable revival through M10 (Authored
-Adventures And Lore, September 2026; see `progress.md`). The agreed next
-tranche is M11, a headless balance harness across classes and seeds. Barry's stated direction:
+The current endpoint is a coherent playable revival through M11 (Balance
+Harness, September 2026; see `progress.md` and `docs/balance/`). The harness
+found melee classes restorative-bound and magic classes trivialised by
+Superzap; Barry has not yet decided whether to adjust. Barry's stated direction:
 fully land the modern retro-clone first, then add expansion content in a
 measured way, eventually letting a player choose vanilla or expanded. The
 expansion menu lives in the C64 repo's `docs/enhancement_wishlist.md` and the

@@ -60,6 +60,18 @@ No known M8 blockers remain.
 - Coverage: quest model and library unit tests, plus browser scenarios for
   library to quest to play with save and resume, and for the Lore panel.
 
+## M11 Balance Harness
+
+- `src/web/src/harness/` drives the bundled quest headlessly with a
+  competent, map-aware policy; `pnpm balance --seeds N [--classes a,b]
+  [--out file]` prints a per-class markdown table.
+- First run (`docs/balance/`): Barbarian 88% and Warrior 76% win, all deaths
+  on level two from strength attrition; Wanderer, Cleric, and Mage win every
+  seed because Superzap costs one hit per monster. Salves are effectively
+  unused. No adjustment made; candidates are listed in the findings note.
+- `tsx` added as the script runner; esbuild's install script is approved in
+  `pnpm-workspace.yaml`.
+
 ## Successor Handover
 
 - `HANDOVER.md` is the compact entry point for a fresh task.

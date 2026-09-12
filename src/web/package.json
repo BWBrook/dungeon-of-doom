@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:browser": "playwright test",
     "lint": "eslint .",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "balance": "tsx src/harness/cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -23,6 +24,7 @@
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.2",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.1",
     "vite": "^8.0.4",

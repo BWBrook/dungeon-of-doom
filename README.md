@@ -15,3 +15,4 @@ Useful commands:
 - `cd src/web && pnpm test`
 - `cd src/web && pnpm test:browser`
 - `cd src/web && pnpm build`
+- `cd src/web && pnpm balance --seeds 30` (headless balance report; see `docs/balance/`)
