@@ -10,6 +10,7 @@ import {
 import { warriorStarter } from '../engine/fixtures';
 import {
   Game,
+  addExperience,
   createGameInit,
   nextWholeExperienceTarget,
   prepareHeroForFreshRun,
@@ -305,7 +306,50 @@ describe('engine rules', () => {
     expect(snapshot.hero.position).toEqual({ x: 7, y: 7 });
     expect(result.messages[0]).toBe('A MONSTER BLOCKS THE WAY');
     expect(snapshot.activeMonster?.id).toBe('lurker');
-    expect(snapshot.messages).toContain('HIT THEE!!');
+    expect(snapshot.messages.some((message) => message === 'HIT THEE!!' || message === 'IT MISSES THEE')).toBe(true);
+  });
+
+  it('lets agile heroes dodge some monster blows and low aura fizzle Superzap', () => {
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [],
+      [{ id: 'guard', position: { x: 7, y: 6 }, legacyTileCode: 111 }]
+    );
+    let misses = 0;
+    let hits = 0;
+    let fizzles = 0;
+    let zaps = 0;
+
+    for (let seed = 1; seed <= 80; seed += 1) {
+      const dodger = createHero({ inventorySlots: { 16: 1 }, stats: createStats({ agility: 6 }) });
+      const game = createGame(dodger, level, seed);
+
+      game.step({ type: 'reveal' });
+      const messages = game.snapshot().messages;
+
+      misses += messages.filter((message) => message === 'IT MISSES THEE').length;
+      hits += messages.filter((message) => message === 'HIT THEE!!').length;
+
+      const caster = createHero({ inventorySlots: { 16: 1, 17: 4 }, stats: createStats({ aura: 3 }) });
+      caster.spellCharges = computeSpellChargesFromInventory(caster);
+      const casterGame = createGame(caster, level, seed);
+
+      casterGame.step({ type: 'reveal' });
+      casterGame.step({ type: 'castSpell', slot: 1 });
+
+      if (casterGame.snapshot().activeMonster) {
+        fizzles += 1;
+      } else {
+        zaps += 1;
+      }
+
+      expect(casterGame.snapshot().hero.stats.aura).toBe(2);
+    }
+
+    expect(misses).toBeGreaterThan(0);
+    expect(hits).toBeGreaterThan(misses);
+    expect(fizzles).toBeGreaterThan(0);
+    expect(zaps).toBeGreaterThan(0);
   });
 
   it('uses restoratives and restores baseline stats', () => {
@@ -341,6 +385,7 @@ describe('engine rules', () => {
     game.step({ type: 'reveal' });
     game.step({ type: 'castSpell', slot: 1 });
     expect(game.snapshot().activeMonster).toBeNull();
+    expect(game.snapshot().hero.stats.aura).toBe(3);
 
     game.step({ type: 'castSpell', slot: 2 });
     expect(game.snapshot().levelView.cells.find((cell) => cell.position.x === 7 && cell.position.y === 7)?.tile).toBe('safe');
@@ -362,6 +407,40 @@ describe('engine rules', () => {
     const restored = Game.fromSerializedRun(game.serializeRun());
 
     expect(restored.snapshot()).toEqual(game.snapshot());
+  });
+
+  it('never metamorphoses a monster into an idol, entrance, or exit', () => {
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [],
+      [{ id: 'guard', position: { x: 7, y: 6 }, legacyTileCode: 111 }]
+    );
+
+    for (let seed = 1; seed <= 60; seed += 1) {
+      const hero = createHero({ inventorySlots: { 16: 1, 18: 3 }, stats: createStats({ aura: 4 }) });
+      hero.spellCharges = computeSpellChargesFromInventory(hero);
+      const game = createGame(hero, level, seed);
+
+      game.step({ type: 'reveal' });
+      game.step({ type: 'castSpell', slot: 5 });
+
+      const tile = game.snapshot().levelView.cells.find(
+        (cell) => cell.position.x === 7 && cell.position.y === 6
+      )?.tile;
+
+      expect(['floor', 'vase', 'chest', 'trap', 'safe']).toContain(tile);
+    }
+  });
+
+  it('accumulates experience without floating-point drift', () => {
+    let experience = 1;
+
+    for (let cast = 0; cast < 5; cast += 1) {
+      experience = addExperience(experience, 0.2);
+    }
+
+    expect(experience).toBe(2);
+    expect(addExperience(addExperience(1, 0.05), 0.05)).toBe(1.1);
   });
 
   it('gates exits at the next whole experience value', () => {

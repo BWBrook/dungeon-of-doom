@@ -2,6 +2,7 @@ import { Adventure } from '../adventure/model';
 import type { AdventureDefinition, AdventureStatus } from '../adventure/model';
 import type { ClassId, HeroState } from '../engine/types';
 import { chooseAction } from './policy';
+import type { PolicyStyle } from './policy';
 
 export type RunOutcome = 'won' | 'dead' | 'abandoned' | 'blocked' | 'stalled';
 
@@ -19,6 +20,7 @@ export interface StageRecord {
 export interface RunRecord {
   classId: ClassId;
   heroName: string;
+  style: PolicyStyle;
   seed: number;
   outcome: RunOutcome;
   stagesCleared: number;
@@ -33,6 +35,7 @@ export interface RunRecord {
 
 export interface SimulationOptions {
   maxTurnsPerStage?: number;
+  style?: PolicyStyle;
 }
 
 const GEAR_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -45,6 +48,7 @@ export function simulateAdventure(
   options: SimulationOptions = {}
 ): RunRecord {
   const maxTurns = options.maxTurnsPerStage ?? DEFAULT_MAX_TURNS;
+  const style = options.style ?? 'careful';
   const adventure = new Adventure({ hero, definition, seed });
   const stages: StageRecord[] = [];
   let outcome: RunOutcome | null = null;
@@ -62,7 +66,7 @@ export function simulateAdventure(
 
     while (status === 'playing' && turns < maxTurns) {
       const run = adventure.serialize().currentRun;
-      const action = chooseAction({ run, isFinalStage });
+      const action = chooseAction({ run, isFinalStage, style });
 
       if (action.type === 'castSpell') {
         spellsCast += 1;
@@ -109,6 +113,7 @@ export function simulateAdventure(
   return {
     classId: hero.classId,
     heroName: hero.name,
+    style,
     seed,
     outcome,
     stagesCleared: adventure.snapshot().completedStages.length,
@@ -124,10 +129,13 @@ export function simulateAdventure(
 
 export interface ClassSummary {
   classId: ClassId;
+  style: PolicyStyle;
   runs: number;
   outcomes: Record<RunOutcome, number>;
   winRate: number;
   deathsByStage: number[];
+  deathRateByStage: number[];
+  meanRestorativesByStage: number[];
   meanTurns: number;
   meanGearBroken: number;
   meanRestorativesUsed: number;
@@ -136,18 +144,28 @@ export interface ClassSummary {
 }
 
 export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSummary[] {
-  const byClass = new Map<ClassId, RunRecord[]>();
+  const groups = new Map<string, RunRecord[]>();
 
   for (const record of records) {
-    byClass.set(record.classId, [...(byClass.get(record.classId) ?? []), record]);
+    const groupKey = `${record.style}|${record.classId}`;
+
+    groups.set(groupKey, [...(groups.get(groupKey) ?? []), record]);
   }
 
-  return Array.from(byClass.entries()).map(([classId, runs]) => {
+  return Array.from(groups.values()).map((runs) => {
+    const { classId, style } = runs[0]!;
     const outcomes: Record<RunOutcome, number> = { won: 0, dead: 0, abandoned: 0, blocked: 0, stalled: 0 };
     const deathsByStage = Array.from({ length: stageCount }, () => 0);
+    const enteredByStage = Array.from({ length: stageCount }, () => 0);
+    const restorativesByStage = Array.from({ length: stageCount }, (): number[] => []);
 
     for (const run of runs) {
       outcomes[run.outcome] += 1;
+
+      for (const stage of run.stages) {
+        enteredByStage[stage.stageIndex]! += 1;
+        restorativesByStage[stage.stageIndex]!.push(stage.restorativesUsed);
+      }
 
       if (run.outcome === 'dead') {
         deathsByStage[run.stages.length - 1]! += 1;
@@ -156,10 +174,15 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
 
     return {
       classId,
+      style,
       runs: runs.length,
       outcomes,
       winRate: outcomes.won / runs.length,
       deathsByStage,
+      deathRateByStage: deathsByStage.map((deaths, index) =>
+        enteredByStage[index]! > 0 ? deaths / enteredByStage[index]! : 0
+      ),
+      meanRestorativesByStage: restorativesByStage.map(mean),
       meanTurns: mean(runs.map((run) => run.turns)),
       meanGearBroken: mean(runs.map((run) => run.gearBroken)),
       meanRestorativesUsed: mean(runs.map((run) => run.restorativesUsed)),
@@ -170,31 +193,29 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
 }
 
 export function formatSummaryTable(summaries: ClassSummary[], stageCount: number): string {
-  const deathHeaders = Array.from({ length: stageCount }, (_, index) => `Died L${index + 1}`);
+  const stageIndexes = Array.from({ length: stageCount }, (_, index) => index);
   const header = [
+    'Style',
     'Class',
     'Runs',
     'Win %',
-    ...deathHeaders,
-    'Abandoned',
-    'Blocked',
-    'Stalled',
+    ...stageIndexes.map((index) => `Death % L${index + 1}`),
+    ...stageIndexes.map((index) => `Rest. L${index + 1}`),
+    'Other',
     'Mean turns',
     'Gear broken',
-    'Restoratives',
     'Final STR'
   ];
   const rows = summaries.map((summary) => [
+    summary.style,
     summary.classId,
     String(summary.runs),
     (summary.winRate * 100).toFixed(0),
-    ...summary.deathsByStage.map(String),
-    String(summary.outcomes.abandoned),
-    String(summary.outcomes.blocked),
-    String(summary.outcomes.stalled),
+    ...summary.deathRateByStage.map((rate) => (rate * 100).toFixed(0)),
+    ...summary.meanRestorativesByStage.map((value) => value.toFixed(1)),
+    String(summary.outcomes.abandoned + summary.outcomes.blocked + summary.outcomes.stalled),
     summary.meanTurns.toFixed(0),
     summary.meanGearBroken.toFixed(2),
-    summary.meanRestorativesUsed.toFixed(2),
     summary.meanFinalStrength.toFixed(1)
   ]);
 

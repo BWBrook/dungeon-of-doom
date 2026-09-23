@@ -285,6 +285,20 @@ Acceptance:
 - balance claims about the bundled quest cite the harness rather than a
   single playthrough
 
+### M12: Balance Pass
+
+Deliverables:
+
+- Superzap aura cost, Metamorphosis outcome set, experience rounding
+- The Lost Idol retuned: sharper level two, a guarded Idol vault
+- harness bot styles, per-level death and restorative reporting, and a
+  regression test pinning the careful-bot bands
+
+Acceptance:
+
+- every class wins at least 70% of careful-bot runs, none is stuck, and
+  levels two and three each kill someone
+
 ## Success Criteria
 
 - The rules are understandable and stable enough that implementation decisions

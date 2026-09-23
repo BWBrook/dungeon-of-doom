@@ -24,31 +24,31 @@ export const ARCHETYPES: Archetype[] = [
   {
     classId: 'barbarian',
     name: 'Krull',
-    stats: stats({ strength: 9, vitality: 7, agility: 6, intelligence: 3, luck: 5, aura: 1, morality: 3 }),
+    stats: stats({ strength: 10, vitality: 9, agility: 7, intelligence: 3, luck: 7, aura: 1, morality: 4 }),
     shoppingList: [1, 9, 10, 16]
   },
   {
     classId: 'warrior',
     name: 'Rogan',
-    stats: stats({ strength: 8, vitality: 6, agility: 5, intelligence: 4, luck: 5, aura: 2, morality: 6 }),
+    stats: stats({ strength: 9, vitality: 8, agility: 6, intelligence: 4, luck: 7, aura: 3, morality: 7 }),
     shoppingList: [2, 9, 10, 16]
   },
   {
     classId: 'wanderer',
     name: 'Tamsin',
-    stats: stats({ strength: 5, vitality: 5, agility: 5, intelligence: 5, luck: 5, aura: 3, morality: 5 }),
+    stats: stats({ strength: 6, vitality: 6, agility: 6, intelligence: 6, luck: 7, aura: 5, morality: 6 }),
     shoppingList: [3, 11, 14, 15, 16, 17]
   },
   {
     classId: 'cleric',
     name: 'Selene',
-    stats: stats({ strength: 4, vitality: 5, agility: 5, intelligence: 7, luck: 5, aura: 5, morality: 8 }),
+    stats: stats({ strength: 5, vitality: 6, agility: 6, intelligence: 7, luck: 6, aura: 7, morality: 8 }),
     shoppingList: [7, 12, 14, 15, 16, 17]
   },
   {
     classId: 'mage',
     name: 'Ismene',
-    stats: stats({ strength: 3, vitality: 4, agility: 5, intelligence: 9, luck: 5, aura: 8, morality: 5 }),
+    stats: stats({ strength: 4, vitality: 5, agility: 6, intelligence: 9, luck: 6, aura: 9, morality: 5 }),
     shoppingList: [17, 18, 7, 12, 16]
   }
 ];

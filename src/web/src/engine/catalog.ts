@@ -36,6 +36,7 @@ export const MESSAGE_TEXT = {
   hit3: 'THY AIM IS TRUE',
   miss: 'MISSED!',
   monsterHit: 'HIT THEE!!',
+  monsterMiss: 'IT MISSES THEE',
   monsterSlain: 'THE MONSTER IS SLAIN',
   noLight: 'NO LIGHT',
   broken: 'BROKEN THY',

@@ -39,6 +39,13 @@ import type {
 const HERO_ATTACK_SLOTS = [1, 2, 3, 4, 5, 7, 8];
 const HERO_DEFENSE_SLOTS = [9, 10, 11, 12, 13, 14];
 const BREAKABLE_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const METAMORPHOSIS_OUTCOMES = [
+  LEGACY_CODES.vase,
+  LEGACY_CODES.chest,
+  LEGACY_CODES.trap,
+  LEGACY_CODES.safe,
+  LEGACY_CODES.monster1
+];
 
 export class Game {
   private seed: number;
@@ -354,7 +361,7 @@ export class Game {
     }
 
     this.hero.stats.strength -= hitPower / 100;
-    this.hero.stats.experience += 0.05;
+    this.hero.stats.experience = addExperience(this.hero.stats.experience, 0.05);
     result.heroChanged = true;
 
     if (monster.hp < 1) {
@@ -471,15 +478,19 @@ export class Game {
     }
 
     if (this.runStatus === 'playing') {
-      this.hero.stats.experience += 0.2;
+      this.hero.stats.experience = addExperience(this.hero.stats.experience, 0.2);
       result.heroChanged = true;
     }
   }
 
   private castSuperzap(result: StepResult) {
     const monster = this.getActiveMonster();
+    const succeeds = this.rng.int(1, 10) <= this.hero.stats.aura + 2;
 
-    if (!monster) {
+    this.hero.stats.aura = Math.max(0, this.hero.stats.aura - 1);
+    result.heroChanged = true;
+
+    if (!monster || !succeeds) {
       this.pushMessage(result, MESSAGE_TEXT.spellFades);
       return;
     }
@@ -534,7 +545,7 @@ export class Game {
       return;
     }
 
-    const transformedCode = this.rng.int(LEGACY_CODES.vase, LEGACY_CODES.monster1);
+    const transformedCode = this.rng.pick(METAMORPHOSIS_OUTCOMES);
 
     if (isLegacyMonsterCode(transformedCode)) {
       monster.legacyTileCode = transformedCode;
@@ -597,6 +608,12 @@ export class Game {
     let hitPower = monsterPowerFromLegacyCode(monster.legacyTileCode) * 0.5;
 
     if (hitPower * 12 < this.hero.stats.luck + this.hero.stats.agility) {
+      return;
+    }
+
+    if (this.rng.int(1, 20) <= this.hero.stats.agility) {
+      this.pushMessage(result, MESSAGE_TEXT.monsterMiss);
+      this.pushSound(result, 'attack-miss');
       return;
     }
 
@@ -664,7 +681,7 @@ export class Game {
 
   private killMonster(monster: MonsterState, result: StepResult) {
     monster.state = 'dead';
-    this.hero.stats.experience += 0.1;
+    this.hero.stats.experience = addExperience(this.hero.stats.experience, 0.1);
     this.activeMonsterId = null;
     this.pushMessage(result, MESSAGE_TEXT.monsterSlain);
     this.pushSound(result, 'monster-kill');
@@ -865,6 +882,10 @@ export function prepareHeroForNextStage(hero: HeroState, level: LevelDefinition)
   resetHeroStageState(runtimeHero, level);
 
   return runtimeHero;
+}
+
+export function addExperience(experience: number, gain: number): number {
+  return Math.round((experience + gain) * 100) / 100;
 }
 
 export function nextWholeExperienceTarget(experience: number): number {

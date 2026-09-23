@@ -110,10 +110,11 @@ installed dependencies are retained for the next agent.
 
 ## Direction and working style
 
-The current endpoint is a coherent playable revival through M11 (Balance
-Harness, September 2026; see `progress.md` and `docs/balance/`). The harness
-found melee classes restorative-bound and magic classes trivialised by
-Superzap; Barry has not yet decided whether to adjust. Barry's stated direction:
+The current endpoint is a coherent playable revival through M12 (Balance
+Pass, September 2026; see `progress.md` and `docs/balance/`). Superzap now
+costs aura and can fizzle, monsters can miss, the Idol sits behind a guarded
+vault, and the careful-bot bands are pinned by a test. Level one is a
+warm-up by Barry's decision; the shield slot is inert and that is open. Barry's stated direction:
 fully land the modern retro-clone first, then add expansion content in a
 measured way, eventually letting a player choose vanilla or expanded. The
 expansion menu lives in the C64 repo's `docs/enhancement_wishlist.md` and the

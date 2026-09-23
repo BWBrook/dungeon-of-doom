@@ -6,10 +6,18 @@ import {
 } from '../engine/catalog';
 import type { Action, BaseTileKind, Facing, MonsterState, Point, SerializedRun } from '../engine/types';
 
+export type PolicyStyle = 'careful' | 'reckless' | 'completionist';
+
+export const POLICY_STYLES: PolicyStyle[] = ['careful', 'reckless', 'completionist'];
+
 export interface PolicyContext {
   run: SerializedRun;
   isFinalStage: boolean;
+  style?: PolicyStyle;
 }
+
+const AURA_RESERVE = 1;
+const MONSTER_PATH_COST = 25;
 
 const STEP_COSTS: Partial<Record<BaseTileKind, number>> = {
   floor: 1,
@@ -23,28 +31,48 @@ const STEP_COSTS: Partial<Record<BaseTileKind, number>> = {
 
 export function chooseAction(context: PolicyContext): Action {
   const { run } = context;
+  const style = context.style ?? 'careful';
+  const reckless = style === 'reckless';
   const hero = run.hero;
   const activeMonster = run.monsters.find((monster) => monster.id === run.activeMonsterId) ?? null;
   const dangerLine = expectedIncomingHit(run) * 2 + 0.5;
-  const lowStrength =
-    hero.stats.strength < dangerLine || hero.stats.strength < hero.baseStats.strength * 0.5;
+  const lowStrength = reckless
+    ? hero.stats.strength < dangerLine
+    : hero.stats.strength < dangerLine || hero.stats.strength < hero.baseStats.strength * 0.5;
   const hasPotion = (hero.inventorySlots[24] ?? 0) > 0;
-  const canCast = (slot: 1 | 2 | 3 | 4 | 5 | 6) =>
-    isSpellAvailableFromInventory(hero, slot) && hero.spellCharges[slot] > 0;
+  const auraCost = (slot: number) => slot === 1 || slot === 4 || slot === 6;
+  const canCast = (slot: 1 | 2 | 3 | 4 | 5 | 6, emergency = false) =>
+    isSpellAvailableFromInventory(hero, slot) &&
+    hero.spellCharges[slot] > 0 &&
+    (!auraCost(slot) || emergency || hero.stats.aura > AURA_RESERVE);
 
   if (activeMonster && chebyshev(activeMonster.position, hero.position) <= 1) {
-    if (canCast(1)) {
-      return { type: 'castSpell', slot: 1 };
-    }
-
     const nextHitKills = hero.stats.strength - expectedIncomingHit(run) < 1.2;
     const canRecover = hero.stats.strength < hero.baseStats.strength - 0.5;
 
-    if ((nextHitKills || lowStrength) && canRecover && hasPotion) {
+    if (nextHitKills && canRecover && hasPotion) {
       return { type: 'useRestorative' };
     }
 
-    if ((nextHitKills || lowStrength) && canRecover && canCast(6)) {
+    if (!meleeViable(run, activeMonster)) {
+      if (nextHitKills && canCast(1, true)) {
+        return { type: 'castSpell', slot: 1 };
+      }
+
+      if (canCast(5)) {
+        return { type: 'castSpell', slot: 5 };
+      }
+
+      if (canCast(1, nextHitKills)) {
+        return { type: 'castSpell', slot: 1 };
+      }
+    }
+
+    if (lowStrength && canRecover && hasPotion) {
+      return { type: 'useRestorative' };
+    }
+
+    if ((nextHitKills || lowStrength) && canRecover && canCast(6, nextHitKills)) {
       return { type: 'castSpell', slot: 6 };
     }
 
@@ -85,7 +113,7 @@ export function chooseAction(context: PolicyContext): Action {
         return turnToward(hero.facing, facing);
       }
 
-      if (target.kind === 'wake' && hero.stats.strength < hero.baseStats.strength * 0.6) {
+      if (!reckless && target.kind === 'wake' && hero.stats.strength < hero.baseStats.strength * 0.6) {
         if (hasPotion) {
           return { type: 'useRestorative' };
         }
@@ -122,9 +150,12 @@ export function chooseAction(context: PolicyContext): Action {
 type Target = { kind: 'walk' | 'get' | 'wake'; point: Point };
 
 function chooseTarget(context: PolicyContext): Target | null {
-  const { run, isFinalStage } = context;
+  const { run } = context;
   const hero = run.hero;
   const cells = run.level.cells;
+  const monstersRemain = run.monsters.some((monster) => monster.state !== 'dead');
+  const isFinalStage =
+    context.isFinalStage && !(context.style === 'completionist' && monstersRemain);
   const width = run.level.width;
   const find = (kind: BaseTileKind): Point[] => {
     const points: Point[] = [];
@@ -164,9 +195,17 @@ function chooseTarget(context: PolicyContext): Target | null {
     if (idol) {
       return { kind: 'get', point: idol };
     }
+
+    const blocker = find('idol')
+      .map((point) => firstMonsterOnPath(run, hero.position, point))
+      .find((monster): monster is Point => monster !== null);
+
+    if (blocker) {
+      return { kind: 'wake', point: blocker };
+    }
   }
 
-  if (hero.stats.experience >= run.exitExperienceTarget) {
+  if (!context.isFinalStage && hero.stats.experience >= run.exitExperienceTarget) {
     const exit = nearestReachable(find('exit'), false);
 
     if (exit) {
@@ -195,8 +234,12 @@ function chooseTarget(context: PolicyContext): Target | null {
     return { kind: 'get', point: anyVase };
   }
 
-  if (hero.stats.experience >= run.exitExperienceTarget) {
-    return null;
+  if (context.isFinalStage) {
+    const idol = nearestReachable(find('idol'), true);
+
+    if (idol) {
+      return { kind: 'get', point: idol };
+    }
   }
 
   return null;
@@ -206,15 +249,17 @@ export function findPath(
   run: SerializedRun,
   from: Point,
   to: Point,
-  stopAdjacent: boolean
+  stopAdjacent: boolean,
+  throughMonsters = false
 ): Point[] | null {
   const width = run.level.width;
   const height = run.level.height;
   const blocked = new Set<string>();
+  const occupied = new Set<string>();
 
   for (const monster of run.monsters) {
     if (monster.state !== 'dead') {
-      blocked.add(key(monster.position));
+      (throughMonsters ? occupied : blocked).add(key(monster.position));
     }
   }
 
@@ -259,7 +304,7 @@ export function findPath(
         continue;
       }
 
-      const cost = current.cost + (stepCost ?? 1);
+      const cost = current.cost + (stepCost ?? 1) + (occupied.has(key(next)) ? MONSTER_PATH_COST : 0);
       const known = distance.get(key(next));
 
       if (known !== undefined && known <= cost) {
@@ -285,6 +330,37 @@ function reconstruct(previous: Map<string, Point>, from: Point, end: Point): Poi
   }
 
   return path;
+}
+
+function firstMonsterOnPath(run: SerializedRun, from: Point, to: Point): Point | null {
+  const path = findPath(run, from, to, true, true);
+
+  if (!path) {
+    return null;
+  }
+
+  const alive = run.monsters.filter((monster) => monster.state !== 'dead');
+
+  for (const point of path) {
+    const monster = alive.find((entry) => entry.position.x === point.x && entry.position.y === point.y);
+
+    if (monster) {
+      return monster.position;
+    }
+  }
+
+  return null;
+}
+
+function meleeViable(run: SerializedRun, monster: MonsterState): boolean {
+  const hero = run.hero;
+  const weapon = [1, 2, 3, 4, 5, 7, 8].reduce((total, slot) => total + (hero.inventorySlots[slot] ?? 0), 0);
+  const blow = hero.stats.strength + weapon + Math.max(1, hero.stats.luck) / 2;
+  const rounds = Math.ceil(monster.hp / Math.max(1, blow));
+  const armour = [9, 10, 11, 12, 13, 14].reduce((total, slot) => total + (hero.inventorySlots[slot] ?? 0), 0);
+  const incoming = (monsterPowerFromLegacyCode(monster.legacyTileCode) * 0.5) / (3 + armour);
+
+  return rounds * incoming < hero.stats.strength * 0.4;
 }
 
 function expectedIncomingHit(run: SerializedRun): number {

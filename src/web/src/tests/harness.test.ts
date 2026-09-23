@@ -65,6 +65,7 @@ describe('balance harness', () => {
     const summaries = summarizeRuns(records, lostIdolAdventure.stages.length);
 
     expect(summaries).toHaveLength(5);
+    expect(summaries.every((summary) => summary.style === 'careful')).toBe(true);
     expect(summaries.every((summary) => summary.runs === 2)).toBe(true);
     expect(formatSummaryTable(summaries, 3)).toContain('| barbarian |');
   });

@@ -115,6 +115,27 @@ should not define the modern runtime save model.
   Lore ("monsters will attack"); the archival BASIC only refused the move.
 - Break messages name the item from the item catalog. The BASIC's `w$` table
   is misaligned with the item list from slot 3 onward and is not reproduced.
+- Superzap draws one aura per cast, as Powersurge and Healing already do in
+  the BASIC. Without it the balance harness (M11) showed every magic class
+  winning every seed because Necronomicon value times aura gave 12 to 32 free
+  kills against 16 monsters.
+- Metamorphosis turns the target into a vase, chest, trap, safe place, or a
+  tier-one monster. The BASIC range also allowed an idol, entrance, or exit,
+  which can create a second Idol or seal a doorway with an exit tile; neither
+  is "some other object" in the Lore's sense.
+- A monster's blow misses when a twenty-sided roll lands at or under the
+  hero's agility. The BASIC gave monsters no miss chance, so a Cleric's runs
+  were a fixed script: aura 7 always won, aura 6 always died. Agility now
+  matters in defence as well as attack.
+- Superzap succeeds when a ten-sided roll is at or under aura plus two, in
+  the spirit of the Lore's warning that Teleport "may not work". Failure still
+  spends the charge and the aura.
+- The seeded generator scrambles its seed through a hash before use. Raw
+  xorshift with small seeds produced only small first outputs, which biased
+  the first roll of every seeded run.
+- Experience gains are rounded to two decimals. The canonical increments
+  (0.05, 0.1, 0.2) accumulate floating-point error otherwise, and five
+  Metamorphosis casts left a hero at 1.9999 with the exit gate closed.
 - Preserve the original rules where they are legible and defensible.
 - Prefer semantic messages and validation over silent BASIC failure modes.
 - Keep legacy import/export as an archival bridge, not as the primary runtime

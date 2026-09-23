@@ -2,7 +2,7 @@ export class Rng {
   private stateValue: number;
 
   constructor(seed = 0x9e3779b9) {
-    this.stateValue = seed >>> 0;
+    this.stateValue = scrambleSeed(seed);
   }
 
   next(): number {
@@ -31,4 +31,14 @@ export class Rng {
   setState(nextState: number) {
     this.stateValue = nextState >>> 0;
   }
+}
+
+function scrambleSeed(seed: number): number {
+  let value = (seed >>> 0) + 0x9e3779b9;
+
+  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b);
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35);
+  value = (value ^ (value >>> 16)) >>> 0;
+
+  return value === 0 ? 0x9e3779b9 : value;
 }

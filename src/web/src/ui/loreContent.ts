@@ -34,8 +34,8 @@ export const LORE_TEMPLATE = String.raw`
         <dl class="lore-keys">
           <div><dt>Strength</dt><dd>Your health and your hitting power. Every action wears it down a little; monster blows wear it down a lot. At zero you die.</dd></div>
           <div><dt>Vitality</dt><dd>How quickly strength recovers while you rest. Monster hits erode it slowly.</dd></div>
-          <div><dt>Agility and Luck</dt><dd>Together they decide whether your blows land. Luck also helps you break free of traps and can save your gear from breaking.</dd></div>
-          <div><dt>Aura</dt><dd>Magical power. Spell charges come from aura multiplied by the value of your magic items. Some spells burn aura when cast.</dd></div>
+          <div><dt>Agility and Luck</dt><dd>Together they decide whether your blows land. Agility also lets you slip some monster blows. Luck helps you break free of traps and can save your gear from breaking.</dd></div>
+          <div><dt>Aura</dt><dd>Magical power. Spell charges come from aura multiplied by the value of your magic items. Superzap, Powersurge, and Healing each burn one aura when cast, and Superzap can fail when aura runs low.</dd></div>
           <div><dt>Experience</dt><dd>Grows in fractions with each blow, kill, and spell. When it passes the next whole number the exit opens. A level cannot be deeper than your experience.</dd></div>
           <div><dt>Intelligence and Morality</dt><dd>Shape which character type you are when the hero is created.</dd></div>
         </dl>
@@ -72,11 +72,11 @@ export const LORE_TEMPLATE = String.raw`
         <h2>Magicks</h2>
         <p>The Necronomicon holds the first three spells; the Scrolls hold the last three.</p>
         <dl class="lore-keys">
-          <div><dt>I Superzap</dt><dd>Slays the active monster outright.</dd></div>
+          <div><dt>I Superzap</dt><dd>Slays the active monster outright, usually. The lower your aura, the more often it fizzles. Costs one aura.</dd></div>
           <div><dt>II Sanctuary</dt><dd>Turns the empty square you stand on into a safe place.</dd></div>
           <div><dt>III Teleport</dt><dd>Moves you somewhere random. If the destination is a wall or a monster, nothing happens.</dd></div>
           <div><dt>IV Powersurge</dt><dd>Boosts strength and vitality for the fight ahead. Costs one aura.</dd></div>
-          <div><dt>V Metamorphosis</dt><dd>Transforms the active monster into something else. Sometimes that something is another monster.</dd></div>
+          <div><dt>V Metamorphosis</dt><dd>Transforms the active monster into a vase, chest, trap, or safe place. One time in five it becomes another monster.</dd></div>
           <div><dt>VI Healing</dt><dd>Restores strength and vitality to their starting values. Costs one aura.</dd></div>
         </dl>
       </article>

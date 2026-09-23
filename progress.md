@@ -72,6 +72,20 @@ No known M8 blockers remain.
 - `tsx` added as the script runner; esbuild's install script is approved in
   `pnpm-workspace.yaml`.
 
+## M12 Balance Pass
+
+- Rules: Superzap costs one aura; Metamorphosis yields vase, chest, trap,
+  safe, or tier-one monster; experience rounds to two decimals (fixes a
+  floating-point exit lock found by the harness).
+- Content: level two sharpened, level three Idol behind a guarded vault door.
+- Harness: careful, reckless, and completionist bots; per-level death and
+  restorative columns; `--styles` flag; band regression test.
+- Stochastic pass: monsters miss on a d20 under agility; Superzap succeeds
+  on a d10 under aura plus two; RNG seeds are hashed to remove first-roll bias.
+- Result (careful bot): Barbarian 100%, Warrior 100%, Wanderer 98%, Cleric
+  75%, Mage 92% wins; reckless fighters 96 to 97%. Level one is a warm-up
+  by decision. See `docs/balance/findings-2026-09-13.md`.
+
 ## Successor Handover
 
 - `HANDOVER.md` is the compact entry point for a fresh task.
