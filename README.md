@@ -6,7 +6,7 @@ A modern browser re-imagining of the Dungeon of Doom game, with a deterministic 
 
 ## Credit and the Usborne book
 
-The book is copyright Usborne Publishing. The original text, rules pages and BASIC listings are **not included** in this repository. This is a fan project and is not endorsed by Usborne. Usborne offers the book as a free download for personal use at <https://usborne.com/au/books/computer-and-coding-books> (not re-checked on 2 November 2026: the site answered an automated request with HTTP 403). Please get the book from there.
+The book is copyright Usborne Publishing. The original text, rules pages and BASIC listings are **not included** in this repository. This is a fan project and is not endorsed by Usborne. Usborne offers the book as a free download for personal use at <https://usborne.com/au/books/computer-and-coding-books>. Please get the book from there.
 
 The original code in this repository (the web app and tools) is the author's own re-implementation. Some design notes under `docs/` refer to `manuals/` and `src/basic/`: these are local, git-ignored working copies of the book material kept by the author for reference, and nothing in the build or tests reads them.
 
