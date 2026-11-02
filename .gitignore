@@ -163,3 +163,10 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Usborne book text and listings: kept locally, never published
+manuals/
+src/basic/
+docs/book_of_lore.md
+docs/dungon_of_doom_transcript.md
+*.pdf
