@@ -26,4 +26,18 @@ describe('Lost Idol balance bands', () => {
     expect(deathsOnLevelTwo).toBeGreaterThan(0);
     expect(deathsOnLevelThree).toBeGreaterThan(0);
   }, 60_000);
+
+  it('rarely lets the warm-up level kill a careful player without the map, and never strands a fog bot', () => {
+    const records = ARCHETYPES.flatMap((archetype) => {
+      const hero = buildArchetypeHero(archetype);
+
+      return SEEDS.slice(0, 8).map((seed) => simulateAdventure(hero, lostIdolAdventure, seed, { vision: 'fog', style: 'careful' }));
+    });
+    const lostOnLevelOne = records.filter((record) => record.stagesCleared === 0);
+
+    expect(lostOnLevelOne.length, 'careful dark runs lost on level one').toBeLessThanOrEqual(1);
+    for (const record of records) {
+      expect(['blocked', 'stalled'], `${record.classId} seed ${record.seed}`).not.toContain(record.outcome);
+    }
+  }, 60_000);
 });

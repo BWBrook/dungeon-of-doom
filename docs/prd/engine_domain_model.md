@@ -103,6 +103,8 @@ Notes:
 - `hp` should preserve the BASIC strength relationship.
 - `stepSize` is the movement rate derived from monster tier, but the modern
   engine should guarantee that valid monsters can move.
+- The warden (legacy code 118, power 14) is expansion content, a tier above the
+  three archival monsters.
 
 ### AdventureState
 
@@ -122,8 +124,10 @@ Notes:
 - A successful non-final exit pauses between levels until the player continues.
 - Hero state carries exactly between levels except for placement, facing, and
   transient status flags.
-- Final-level escape without the Idol abandons the quest; recovering the Idol
-  wins it.
+- A level that still holds the Idol cannot be left by its exit; recovering the
+  Idol wins the quest.
+- A stage may carry a verse, shown between levels before it and on the
+  progress panel while it is played.
 
 ## Enumerations And Catalogs
 
@@ -158,6 +162,7 @@ Minimum semantic tile kinds:
 - `exit`
 - `trap`
 - `safe`
+- `relic` (expansion content; exported to legacy formats as floor)
 - `monsterDormant`
 
 Notes:
@@ -187,6 +192,7 @@ Important slot groups:
 - `18`: Scrolls
 - `23`: healing salves
 - `24`: potions
+- `25`: relic (expansion content, modern saves only)
 
 This lets the engine remain faithful while still being readable.
 
@@ -223,18 +229,29 @@ Recommended order:
 - If a trap is crossed, set trapped state.
 - If already trapped, a move attempt may instead trigger a break-free check.
 
+### Rest
+
+- Idles until strength reaches two-thirds of base, or the active monster is
+  adjacent while the hero is off a safe square.
+- No strength decay while resting; recovery and the monster's turn run on
+  every idle turn, and each idle turn counts toward the turn total.
+
 ### Attack
 
-- Attack only matters when an active monster is in range.
+- Attack only matters when an active monster is in range: within one square
+  in any direction, the same reach the monster has.
 - Attack formula should preserve the role of strength, luck, and weapon slots.
 - Missing and damage should be deterministic under a fixed seed.
 
 ### Get
 
-- Operates on the square directly in front of the hero.
+- Operates on the square directly in front of the hero, lighting it first
+  (BASIC line 1500), which wakes a monster found there.
 - Vase grants salve and potion stock.
 - Chest grants treasure.
 - Idol ends the quest and computes score.
+- Relic goes to slot 25. The next killing blow instead restores strength and
+  vitality to baseline and spends it.
 
 ### Reveal
 

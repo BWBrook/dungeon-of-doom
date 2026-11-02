@@ -104,6 +104,13 @@ export const TILE_VISUALS: Record<BaseTileKind, TileVisual> = {
     dim: '#12232d',
     ink: '#d5edf7',
     accent: '#7fb7d7'
+  },
+  relic: {
+    glyph: '&',
+    lit: '#4b2a6b',
+    dim: '#221433',
+    ink: '#f0d8ff',
+    accent: '#c89bff'
   }
 };
 
@@ -132,6 +139,12 @@ export const MONSTER_VISUALS = {
     fill: '#e06d42',
     ink: '#fff7d3',
     outline: '#ffef9f'
+  },
+  warden: {
+    glyph: 'W',
+    fill: '#6a1f5c',
+    ink: '#ffd8f4',
+    outline: '#ff8ad8'
   }
 } as const;
 

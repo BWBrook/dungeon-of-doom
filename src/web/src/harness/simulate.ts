@@ -1,10 +1,15 @@
 import { Adventure } from '../adventure/model';
 import type { AdventureDefinition, AdventureStatus } from '../adventure/model';
-import type { ClassId, HeroState } from '../engine/types';
-import { chooseAction } from './policy';
-import type { PolicyStyle } from './policy';
+import { LEGACY_CODES, MESSAGE_TEXT, RELIC_SLOT, monsterHpFromLegacyCode } from '../engine/catalog';
+import type { ClassId, HeroState, LevelDefinition } from '../engine/types';
+import { chooseAction, fogView, omniscientView, withVerseKnowledge } from './policy';
+import type { PolicyStyle, RelicIntent, VerseKnowledge } from './policy';
 
-export type RunOutcome = 'won' | 'dead' | 'abandoned' | 'blocked' | 'stalled';
+export type RunOutcome = 'won' | 'dead' | 'blocked' | 'stalled';
+
+export type Vision = 'omniscient' | 'fog';
+
+export const VISIONS: Vision[] = ['omniscient', 'fog'];
 
 export interface StageRecord {
   stageIndex: number;
@@ -13,6 +18,10 @@ export interface StageRecord {
   gearBroken: number;
   restorativesUsed: number;
   spellsCast: number;
+  lightUsed: number;
+  wallBumps: number;
+  relicTaken: boolean;
+  relicSpent: boolean;
   strengthAtEnd: number;
   experienceAtEnd: number;
 }
@@ -21,6 +30,8 @@ export interface RunRecord {
   classId: ClassId;
   heroName: string;
   style: PolicyStyle;
+  vision: Vision;
+  relicIntent: RelicIntent;
   seed: number;
   outcome: RunOutcome;
   stagesCleared: number;
@@ -36,6 +47,8 @@ export interface RunRecord {
 export interface SimulationOptions {
   maxTurnsPerStage?: number;
   style?: PolicyStyle;
+  vision?: Vision;
+  relicIntent?: RelicIntent;
 }
 
 const GEAR_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -49,6 +62,9 @@ export function simulateAdventure(
 ): RunRecord {
   const maxTurns = options.maxTurnsPerStage ?? DEFAULT_MAX_TURNS;
   const style = options.style ?? 'careful';
+  const vision = options.vision ?? 'omniscient';
+  const relicIntent = options.relicIntent ?? 'heed';
+  const stageCount = definition.stages.length;
   const adventure = new Adventure({ hero, definition, seed });
   const stages: StageRecord[] = [];
   let outcome: RunOutcome | null = null;
@@ -60,19 +76,34 @@ export function simulateAdventure(
     const startGear = countGear(startRun.hero.inventorySlots);
     const startRestoratives = countRestoratives(startRun.hero.inventorySlots);
     const startMonsters = startRun.monsters.filter((monster) => monster.state !== 'dead').length;
+    const lightFloor = Math.floor(
+      (startRun.hero.lightUses * (stageCount - stageIndex - 1)) / (stageCount - stageIndex)
+    );
+    const stage = definition.stages[stageIndex]!;
+    const knowledge = stage.verse ? verseKnowledge(stage.level) : null;
     let spellsCast = 0;
+    let wallBumps = 0;
+    let relicSpent = false;
     let turns = 0;
     let status: AdventureStatus = 'playing';
 
     while (status === 'playing' && turns < maxTurns) {
-      const run = adventure.serialize().currentRun;
-      const action = chooseAction({ run, isFinalStage, style });
+      const fog = vision === 'fog' ? fogView(adventure.snapshot().currentRun) : null;
+      const view = fog
+        ? knowledge
+          ? withVerseKnowledge(fog, knowledge)
+          : fog
+        : omniscientView(adventure.serialize().currentRun);
+      const action = chooseAction({ view, isFinalStage, style, lightFloor, relicIntent, explorerSeed: seed });
 
       if (action.type === 'castSpell') {
         spellsCast += 1;
       }
 
-      adventure.step(action);
+      const result = adventure.step(action);
+
+      wallBumps += result.sounds.includes('bump') ? 1 : 0;
+      relicSpent ||= result.messages.includes(MESSAGE_TEXT.relicSaves);
       turns += 1;
       status = adventure.snapshot().status;
     }
@@ -87,6 +118,12 @@ export function simulateAdventure(
       gearBroken: Math.max(0, startGear - countGear(endRun.hero.inventorySlots)),
       restorativesUsed: Math.max(0, startRestoratives + vasesTaken(startRun, endRun) * 2 - bought),
       spellsCast,
+      lightUsed: startRun.hero.lightUses - endRun.hero.lightUses,
+      wallBumps,
+      relicTaken:
+        (startRun.hero.inventorySlots[RELIC_SLOT] ?? 0) === 0 &&
+        ((endRun.hero.inventorySlots[RELIC_SLOT] ?? 0) > 0 || relicSpent),
+      relicSpent,
       strengthAtEnd: endRun.hero.stats.strength,
       experienceAtEnd: endRun.hero.stats.experience
     });
@@ -97,8 +134,6 @@ export function simulateAdventure(
       outcome = 'won';
     } else if (status === 'dead') {
       outcome = 'dead';
-    } else if (status === 'abandoned') {
-      outcome = 'abandoned';
     } else {
       try {
         adventure.continueToNextLevel();
@@ -114,6 +149,8 @@ export function simulateAdventure(
     classId: hero.classId,
     heroName: hero.name,
     style,
+    vision,
+    relicIntent,
     seed,
     outcome,
     stagesCleared: adventure.snapshot().completedStages.length,
@@ -130,6 +167,8 @@ export function simulateAdventure(
 export interface ClassSummary {
   classId: ClassId;
   style: PolicyStyle;
+  vision: Vision;
+  relicIntent: RelicIntent;
   runs: number;
   outcomes: Record<RunOutcome, number>;
   winRate: number;
@@ -139,6 +178,10 @@ export interface ClassSummary {
   meanTurns: number;
   meanGearBroken: number;
   meanRestorativesUsed: number;
+  meanLightUsed: number;
+  meanWallBumps: number;
+  relicTakenRate: number;
+  relicSpentRate: number;
   meanFinalStrength: number;
   meanStagesCleared: number;
 }
@@ -147,14 +190,14 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
   const groups = new Map<string, RunRecord[]>();
 
   for (const record of records) {
-    const groupKey = `${record.style}|${record.classId}`;
+    const groupKey = `${record.vision}|${record.relicIntent}|${record.style}|${record.classId}`;
 
     groups.set(groupKey, [...(groups.get(groupKey) ?? []), record]);
   }
 
   return Array.from(groups.values()).map((runs) => {
-    const { classId, style } = runs[0]!;
-    const outcomes: Record<RunOutcome, number> = { won: 0, dead: 0, abandoned: 0, blocked: 0, stalled: 0 };
+    const { classId, style, vision, relicIntent } = runs[0]!;
+    const outcomes: Record<RunOutcome, number> = { won: 0, dead: 0, blocked: 0, stalled: 0 };
     const deathsByStage = Array.from({ length: stageCount }, () => 0);
     const enteredByStage = Array.from({ length: stageCount }, () => 0);
     const restorativesByStage = Array.from({ length: stageCount }, (): number[] => []);
@@ -175,6 +218,8 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
     return {
       classId,
       style,
+      vision,
+      relicIntent,
       runs: runs.length,
       outcomes,
       winRate: outcomes.won / runs.length,
@@ -186,6 +231,10 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
       meanTurns: mean(runs.map((run) => run.turns)),
       meanGearBroken: mean(runs.map((run) => run.gearBroken)),
       meanRestorativesUsed: mean(runs.map((run) => run.restorativesUsed)),
+      meanLightUsed: mean(runs.map((run) => run.stages.reduce((total, stage) => total + stage.lightUsed, 0))),
+      meanWallBumps: mean(runs.map((run) => run.stages.reduce((total, stage) => total + stage.wallBumps, 0))),
+      relicTakenRate: mean(runs.map((run) => (run.stages.some((stage) => stage.relicTaken) ? 1 : 0))),
+      relicSpentRate: mean(runs.map((run) => (run.stages.some((stage) => stage.relicSpent) ? 1 : 0))),
       meanFinalStrength: mean(runs.map((run) => run.finalStrength)),
       meanStagesCleared: mean(runs.map((run) => run.stagesCleared))
     };
@@ -195,28 +244,38 @@ export function summarizeRuns(records: RunRecord[], stageCount: number): ClassSu
 export function formatSummaryTable(summaries: ClassSummary[], stageCount: number): string {
   const stageIndexes = Array.from({ length: stageCount }, (_, index) => index);
   const header = [
-    'Style',
     'Class',
+    'Vision',
+    'Relic',
+    'Style',
     'Runs',
     'Win %',
     ...stageIndexes.map((index) => `Death % L${index + 1}`),
-    ...stageIndexes.map((index) => `Rest. L${index + 1}`),
-    'Other',
-    'Mean turns',
-    'Gear broken',
-    'Final STR'
+    'Stuck',
+    'Actions',
+    'Restoratives',
+    'Light',
+    'Bumps',
+    'Relic taken %',
+    'Saved %',
+    'Gear broken'
   ];
   const rows = summaries.map((summary) => [
-    summary.style,
     summary.classId,
+    summary.vision,
+    summary.relicIntent,
+    summary.style,
     String(summary.runs),
     (summary.winRate * 100).toFixed(0),
     ...summary.deathRateByStage.map((rate) => (rate * 100).toFixed(0)),
-    ...summary.meanRestorativesByStage.map((value) => value.toFixed(1)),
-    String(summary.outcomes.abandoned + summary.outcomes.blocked + summary.outcomes.stalled),
+    String(summary.outcomes.blocked + summary.outcomes.stalled),
     summary.meanTurns.toFixed(0),
-    summary.meanGearBroken.toFixed(2),
-    summary.meanFinalStrength.toFixed(1)
+    summary.meanRestorativesUsed.toFixed(1),
+    summary.meanLightUsed.toFixed(1),
+    summary.meanWallBumps.toFixed(1),
+    (summary.relicTakenRate * 100).toFixed(0),
+    (summary.relicSpentRate * 100).toFixed(0),
+    summary.meanGearBroken.toFixed(2)
   ]);
 
   return [
@@ -224,6 +283,22 @@ export function formatSummaryTable(summaries: ClassSummary[], stageCount: number
     `| ${header.map(() => '---').join(' | ')} |`,
     ...rows.map((row) => `| ${row.join(' | ')} |`)
   ].join('\n');
+}
+
+function verseKnowledge(level: LevelDefinition): VerseKnowledge {
+  const relicIndex = level.cells.findIndex((cell) => cell.kind === 'relic');
+
+  return {
+    relic: relicIndex < 0 ? null : { x: relicIndex % level.width, y: Math.floor(relicIndex / level.width) },
+    wardens: level.monsterSpawns
+      .filter((spawn) => spawn.legacyTileCode >= LEGACY_CODES.warden)
+      .map((spawn) => ({
+        id: spawn.id,
+        position: { ...spawn.position },
+        hp: monsterHpFromLegacyCode(spawn.legacyTileCode),
+        legacyTileCode: spawn.legacyTileCode
+      }))
+  };
 }
 
 function countGear(slots: Record<number, number>): number {

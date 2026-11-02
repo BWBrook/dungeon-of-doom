@@ -24,7 +24,7 @@ Useful commands:
 - `cd src/web && pnpm test`
 - `cd src/web && pnpm test:browser`
 - `cd src/web && pnpm build`
-- `cd src/web && pnpm balance --seeds 30` (headless balance report; see `docs/balance/`)
+- `cd src/web && pnpm balance --seeds 30` (headless balance report with and without the map; add `--relic heed,seek` to compare players who leave the level-two relic with players who take it; see `docs/balance/`)
 
 ## Licence
 

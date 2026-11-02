@@ -110,6 +110,11 @@ small number of end-to-end mode transitions.
 - Scene: hero gets the idol
 - Verify: run ends in victory and score is computed
 
+### E011b Get Lights The Square Ahead
+
+- Scene: hero presses Get facing an unexplored square
+- Verify: the square is explored and drawn, whether or not it held anything
+
 ### E012 No-Light Reveal
 
 - Scene: hero has zero light uses
@@ -156,6 +161,24 @@ small number of end-to-end mode transitions.
 - Scene: hero moves into a dormant monster's square
 - Verify: the hero stays put, the monster becomes active, and it attacks that
   same turn
+
+### E019c Rest
+
+- Scene: weakened hero rests, alone, beside a monster, and on a safe square
+- Verify: recovery stops at two-thirds of base; a monster at hand breaks it
+  off except on a safe square; a trapped hero pulls free only once rested
+
+### E019d Reach, Sanctuary, And The Idol Gate
+
+- Verify: an attack on a monster out of reach, or from a safe square, does no
+  damage; a level that still holds the Idol cannot be left by its exit
+
+### E019e The Warden's Relic
+
+- Scene: hero takes a relic, then suffers a killing blow
+- Verify: the blow restores strength and vitality to baseline and spends the
+  relic; without a relic the same blow kills; the warden has power 14 and 84
+  hit points
 
 ### E020 Restorative Use
 
@@ -220,6 +243,12 @@ small number of end-to-end mode transitions.
 - Verify: save/load restores stage, summaries, root seed, current run, and RNG
   exactly
 
+### E032 Stage Verse
+
+- Scene: the bundled quest between levels one and two, then level two
+- Verify: level two's verse is offered before the descent and shown while the
+  level is played
+
 ## Canon Divergence Tests
 
 ### D001 Class Count
@@ -277,6 +306,7 @@ These are post-engine tests.
 
 - Begin the bundled adventure
 - Save and resume during a stage
+- See level two's verse between levels and on the progress panel
 - Continue after escape and complete the final Idol outcome
 
 ## Suggested Early Fixtures

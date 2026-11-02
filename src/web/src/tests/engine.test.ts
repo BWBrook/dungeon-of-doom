@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_LIGHT_USES,
+  LEGACY_CODES,
+  RELIC_SLOT,
+  REST_CEILING,
   computeSpellChargesFromInventory,
   createEmptyInventorySlots,
   createHeroStatus,
+  monsterHpFromLegacyCode,
+  monsterPowerFromLegacyCode,
   tileKindToLegacyCode
 } from '../engine/catalog';
 import { warriorStarter } from '../engine/fixtures';
@@ -126,6 +131,13 @@ describe('engine rules', () => {
     expect(after.position).toEqual({ x: 7, y: 7 });
     expect(after.stats.strength).toBeLessThan(before);
     expect(result.messages.at(-1)).toBe('THOU STRIKEST A WALL');
+
+    const wall = game.snapshot().levelView.cells.find(
+      (cell) => cell.position.x === 7 && cell.position.y === 6
+    );
+
+    expect(wall?.explored).toBe(true);
+    expect(wall?.tile).toBe('wall');
   });
 
   it('sticks on traps and can break free on later move attempts', () => {
@@ -441,6 +453,184 @@ describe('engine rules', () => {
 
     expect(experience).toBe(2);
     expect(addExperience(addExperience(1, 0.05), 0.05)).toBe(1.1);
+  });
+
+  it('rests back to two-thirds strength without decay while nothing hunts the hero', () => {
+    const hero = createHero({
+      stats: createStats({ strength: 3, vitality: 10 }),
+      baseStats: createStats({ strength: 10, vitality: 10 })
+    });
+    const game = createGame(hero, createLevel(), 3);
+    const result = game.step({ type: 'rest' });
+    const snapshot = game.snapshot();
+
+    expect(snapshot.hero.stats.strength).toBeGreaterThanOrEqual(10 * REST_CEILING);
+    expect(snapshot.hero.stats.strength).toBeLessThan(10 * REST_CEILING + 0.01);
+    expect(snapshot.turnCount).toBeGreaterThan(300);
+    expect(result.messages).toContain('THOU ART RESTED');
+
+    game.step({ type: 'rest' });
+    expect(game.snapshot().turnCount).toBe(snapshot.turnCount + 1);
+  });
+
+  it('breaks off rest when a monster is at hand, except on a safe square', () => {
+    const weak = { stats: createStats({ strength: 3, vitality: 10 }), baseStats: createStats({ strength: 10, vitality: 10 }) };
+    const guard: MonsterSpawn[] = [{ id: 'guard', position: { x: 8, y: 6 }, legacyTileCode: 111 }];
+    const exposed = createGame(createHero({ ...weak, lightUses: DEFAULT_LIGHT_USES }), createLevel({ x: 7, y: 7 }, [], guard), 4);
+
+    exposed.step({ type: 'reveal' });
+    const disturbed = exposed.step({ type: 'rest' });
+
+    expect(disturbed.messages).toContain('A MONSTER DISTURBS THY REST');
+    expect(exposed.snapshot().hero.stats.strength).toBeLessThan(10 * REST_CEILING);
+
+    const sheltered = createGame(
+      createHero({ ...weak, lightUses: DEFAULT_LIGHT_USES }),
+      createLevel({ x: 7, y: 7 }, [{ x: 7, y: 7, kind: 'safe' }], guard),
+      4
+    );
+
+    sheltered.step({ type: 'reveal' });
+    const rested = sheltered.step({ type: 'rest' });
+
+    expect(sheltered.snapshot().activeMonster?.id).toBe('guard');
+    expect(rested.messages).toContain('THOU ART RESTED');
+    expect(sheltered.snapshot().hero.stats.strength).toBeGreaterThanOrEqual(10 * REST_CEILING);
+  });
+
+  it('holds a trapped hero until rested, then lets luck pull them free', () => {
+    const hero = createHero({
+      stats: createStats({ strength: 4, vitality: 10, luck: 9 }),
+      baseStats: createStats({ strength: 10, vitality: 10, luck: 9 })
+    });
+    const game = createGame(hero, createLevel({ x: 7, y: 7 }, [{ x: 7, y: 6, kind: 'trap' }]), 2);
+
+    game.step({ type: 'moveForward' });
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      game.step({ type: 'moveForward' });
+    }
+
+    expect(game.snapshot().hero.status.trapped).toBe(true);
+
+    game.step({ type: 'rest' });
+
+    for (let attempt = 0; attempt < 10 && game.snapshot().hero.status.trapped; attempt += 1) {
+      game.step({ type: 'rest' });
+      game.step({ type: 'moveForward' });
+    }
+
+    expect(game.snapshot().hero.status.trapped).toBe(false);
+  });
+
+  it('only lets the hero strike a monster within reach', () => {
+    const level = createLevel({ x: 5, y: 7 }, [], [{ id: 'far', position: { x: 9, y: 7 }, legacyTileCode: 111 }]);
+    const save = createGame(createHero(), level, 6).serializeRun();
+
+    save.monsters[0]!.state = 'active';
+    save.activeMonsterId = 'far';
+    save.exploredKeys.push('9,7');
+
+    const game = Game.fromSerializedRun(save);
+    const result = game.step({ type: 'attack' });
+
+    expect(result.messages).toContain('THE MONSTER IS OUT OF REACH');
+    expect(game.snapshot().activeMonster?.hp).toBe(42);
+  });
+
+  it('lets no blow fall in sanctuary, from either side', () => {
+    const hero = createHero({ lightUses: DEFAULT_LIGHT_USES });
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [{ x: 7, y: 7, kind: 'safe' }],
+      [{ id: 'guard', position: { x: 8, y: 6 }, legacyTileCode: 111 }]
+    );
+    const game = createGame(hero, level, 5);
+
+    game.step({ type: 'reveal' });
+    const result = game.step({ type: 'attack' });
+
+    expect(result.messages).toContain('NONE MAY FIGHT IN SANCTUARY');
+    expect(game.snapshot().activeMonster?.hp).toBe(42);
+    expect(game.snapshot().messages).not.toContain('HIT THEE!!');
+  });
+
+  it('lights the square ahead whenever the hero reaches to get something', () => {
+    const game = createGame(createHero(), createLevel({ x: 7, y: 7 }, [{ x: 7, y: 6, kind: 'vase' }]));
+    const ahead = () => game.snapshot().levelView.cells.find((cell) => cell.position.x === 7 && cell.position.y === 6);
+
+    expect(ahead()?.explored).toBe(false);
+    game.step({ type: 'get' });
+    expect(ahead()?.explored).toBe(true);
+    expect(ahead()?.tile).toBe('floor');
+  });
+
+  it('blesses a cleric who takes the Idol, and only a cleric', () => {
+    const level = createLevel({ x: 7, y: 7 }, [{ x: 7, y: 6, kind: 'idol' }]);
+    const cleric = createGame(createHero({ classId: 'cleric' }), level);
+    const warrior = createGame(createHero({ classId: 'warrior' }), level);
+
+    expect(cleric.step({ type: 'get' }).messages).toEqual([
+      'THY QUEST IS OVER!',
+      'A VOICE ON HIGH: WELL DONE, MY FAITHFUL ONE'
+    ]);
+    expect(warrior.step({ type: 'get' }).messages).toEqual(['THY QUEST IS OVER!']);
+  });
+
+  it('lets a relic be taken, then spares its bearer one lethal blow', () => {
+    const pickup = createGame(createHero(), createLevel({ x: 7, y: 7 }, [{ x: 7, y: 6, kind: 'relic' }]));
+
+    expect(pickup.step({ type: 'get' }).messages).toEqual(['A RELIC! IT WILL SAVE THEE ONCE']);
+    expect(pickup.snapshot().hero.inventorySlots[RELIC_SLOT]).toBe(1);
+    expect(
+      pickup.snapshot().levelView.cells.find((cell) => cell.position.x === 7 && cell.position.y === 6)?.tile
+    ).toBe('floor');
+
+    const faltering = (relics: number) =>
+      createGame(
+        createHero({
+          stats: createStats({ strength: 1, vitality: 1 }),
+          baseStats: createStats(),
+          inventorySlots: { [RELIC_SLOT]: relics }
+        }),
+        createLevel()
+      );
+    const bearer = faltering(1);
+
+    expect(bearer.step({ type: 'turnRight' }).messages).toContain('THE RELIC CRUMBLES AND THOU LIVEST');
+    expect(bearer.snapshot().runStatus).toBe('playing');
+    expect(bearer.snapshot().hero.stats.strength).toBe(10);
+    expect(bearer.snapshot().hero.stats.vitality).toBe(10);
+    expect(bearer.snapshot().hero.inventorySlots[RELIC_SLOT]).toBe(0);
+
+    const unguarded = faltering(0);
+
+    unguarded.step({ type: 'turnRight' });
+    expect(unguarded.snapshot().runStatus).toBe('dead');
+  });
+
+  it('makes the warden far stronger than any archival monster', () => {
+    expect(monsterPowerFromLegacyCode(LEGACY_CODES.monster3)).toBe(9);
+    expect(monsterPowerFromLegacyCode(LEGACY_CODES.warden)).toBe(14);
+    expect(monsterHpFromLegacyCode(LEGACY_CODES.warden)).toBe(84);
+  });
+
+  it('bars the exit while the Idol remains in the level', () => {
+    const hero = createHero({ stats: createStats({ experience: 2 }) });
+    const level = createLevel(
+      { x: 7, y: 7 },
+      [
+        { x: 7, y: 6, kind: 'exit' },
+        { x: 2, y: 2, kind: 'idol' }
+      ]
+    );
+    const game = createGame(hero, level);
+
+    game.step({ type: 'moveForward' });
+
+    expect(game.snapshot().runStatus).toBe('playing');
+    expect(game.snapshot().hero.position).toEqual({ x: 7, y: 7 });
+    expect(game.snapshot().messages.at(-1)).toBe('YOU NEED THE IDOL');
   });
 
   it('gates exits at the next whole experience value', () => {

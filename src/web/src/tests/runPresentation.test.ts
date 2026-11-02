@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createEmptyInventorySlots, createHeroStatus } from '../engine/catalog';
+import { RELIC_SLOT, createEmptyInventorySlots, createHeroStatus } from '../engine/catalog';
 import type { HeroState, LevelDefinition, Snapshot, Stats } from '../engine/types';
 import { createRunPresentation } from '../ui/runPresentation';
 
@@ -119,6 +119,64 @@ describe('run presentation', () => {
     expect(commandEnabled(snapshot, 'conjure')).toBe(true);
     expect(presentation.resources).toContainEqual({ label: 'MAGIC', value: 'BOOK' });
     expect(presentation.resources).toContainEqual({ label: 'ACTIVE', value: '12 HP' });
+  });
+
+  it('lists a held relic among the resources until it is spent', () => {
+    const holding = createRunPresentation(
+      createSnapshot({ hero: createHero({ inventorySlots: { [RELIC_SLOT]: 1 } }) }),
+      createLevel()
+    );
+    const spent = createRunPresentation(createSnapshot(), createLevel());
+
+    expect(holding.resources).toContainEqual({ label: 'RELIC', value: 'HELD' });
+    expect(spent.resources.map((resource) => resource.label)).not.toContain('RELIC');
+  });
+
+  it('enables attack only when the active monster is within reach', () => {
+    const farMonster = createSnapshot({
+      activeMonster: {
+        id: 'far',
+        legacyTileCode: 111,
+        position: { x: 10, y: 7 },
+        hp: 42,
+        stepSize: 1,
+        state: 'active'
+      }
+    });
+    const attack = createRunPresentation(farMonster, createLevel()).commandStates.find(
+      (command) => command.id === 'attack'
+    );
+
+    expect(attack?.enabled).toBe(false);
+    expect(attack?.hint).toBe('The monster is out of reach.');
+    expect(commandEnabled(farMonster, 'rest')).toBe(true);
+  });
+
+  it('disables attack in sanctuary even with a monster at hand', () => {
+    const cells = Array.from({ length: 225 }, (_, index) => ({
+      position: { x: index % 15, y: Math.floor(index / 15) },
+      visible: true,
+      explored: true,
+      tile: index === 7 * 15 + 7 ? ('safe' as const) : ('floor' as const),
+      monster: null
+    }));
+    const sheltered = createSnapshot({
+      levelView: { width: 15, height: 15, cells },
+      activeMonster: {
+        id: 'near',
+        legacyTileCode: 111,
+        position: { x: 8, y: 6 },
+        hp: 42,
+        stepSize: 1,
+        state: 'active'
+      }
+    });
+    const attack = createRunPresentation(sheltered, createLevel()).commandStates.find(
+      (command) => command.id === 'attack'
+    );
+
+    expect(attack?.enabled).toBe(false);
+    expect(attack?.hint).toBe('None may fight in sanctuary.');
   });
 
   it('keeps unavailable contextual commands visible but disabled', () => {

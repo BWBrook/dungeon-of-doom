@@ -14,6 +14,7 @@ export const LEGACY_OS = 96;
 export const LEVEL_PAYLOAD_LENGTH = 228;
 export const DEFAULT_LIGHT_USES = 20;
 export const MESSAGE_LIMIT = 10;
+export const REST_CEILING = 2 / 3;
 
 export const LEGACY_CODES = {
   floor: LEGACY_OS + 6,
@@ -27,8 +28,11 @@ export const LEGACY_CODES = {
   safe: LEGACY_OS + 14,
   monster1: LEGACY_OS + 15,
   monster2: LEGACY_OS + 16,
-  monster3: LEGACY_OS + 17
+  monster3: LEGACY_OS + 17,
+  warden: LEGACY_OS + 22
 } as const;
+
+export const RELIC_SLOT = 25;
 
 export const MESSAGE_TEXT = {
   hit1: 'A GOOD BLOW',
@@ -42,13 +46,21 @@ export const MESSAGE_TEXT = {
   broken: 'BROKEN THY',
   spellExhausted: 'SPELL EXHAUSTED',
   needExperience: 'YOU NEED EXPERIENCE',
+  needIdol: 'YOU NEED THE IDOL',
+  rested: 'THOU ART RESTED',
+  restDisturbed: 'A MONSTER DISTURBS THY REST',
   exitLevel: 'EXIT FROM THIS LEVEL',
   questOver: 'THY QUEST IS OVER!',
+  clericBlessing: 'A VOICE ON HIGH: WELL DONE, MY FAITHFUL ONE',
+  relicTaken: 'A RELIC! IT WILL SAVE THEE ONCE',
+  relicSaves: 'THE RELIC CRUMBLES AND THOU LIVEST',
   trapHeld: 'THE TRAP HOLDS THEE',
   trapFreed: 'THOU ART FREED',
   blockedByMonster: 'A MONSTER BLOCKS THE WAY',
   nothingToGet: 'NOTHING TO GET',
   noMonster: 'NO MONSTER TO FIGHT',
+  outOfReach: 'THE MONSTER IS OUT OF REACH',
+  noFightInSanctuary: 'NONE MAY FIGHT IN SANCTUARY',
   noMagic: 'NO MAGICKS AVAILABLE',
   spellFades: 'THE SPELL FIZZLES',
   runSaved: 'THE RUN IS SAVED'
@@ -104,7 +116,8 @@ export const ITEM_CATALOG: Record<number, { name: string; stackable: boolean }> 
   21: { name: 'sash', stackable: false },
   22: { name: 'cloak', stackable: false },
   23: { name: 'healing salve', stackable: true },
-  24: { name: 'potions', stackable: true }
+  24: { name: 'potions', stackable: true },
+  25: { name: 'relic', stackable: false }
 };
 
 export function createEmptyInventorySlots(): Record<number, number> {
@@ -170,6 +183,8 @@ export function tileKindToLegacyCode(tileKind: BaseTileKind): number {
       return LEGACY_CODES.trap;
     case 'safe':
       return LEGACY_CODES.safe;
+    case 'relic':
+      return LEGACY_CODES.floor;
   }
 }
 

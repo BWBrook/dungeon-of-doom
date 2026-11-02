@@ -1342,3 +1342,14 @@ button:active:not(:disabled) {
     gap: 0.15rem;
   }
 }
+
+.adventure-verse {
+  margin: 0.6rem 0 0;
+  padding-left: 0.8rem;
+  border-left: 2px solid rgba(200, 155, 255, 0.45);
+  color: #e4d2ff;
+  font-family: "Palatino Linotype", "Book Antiqua", "Iowan Old Style", serif;
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-line;
+}

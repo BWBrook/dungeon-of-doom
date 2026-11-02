@@ -181,7 +181,7 @@ test('uses the polished command surface and reports playable text state', async 
   await clickCommand(page, 'attack');
   await clickCommand(page, 'turnRight');
   await clickCommand(page, 'turnLeft');
-  await clickCommand(page, 'wait');
+  await clickCommand(page, 'rest');
   await clickCommand(page, 'restore');
   await clickCommand(page, 'save');
   await expect(page.locator('[data-role="save-status"]')).toContainText('Saved turn');
@@ -261,7 +261,7 @@ test('begins, saves, and resumes the bundled adventure', async ({ page }) => {
     'Level 1 of 3'
   );
 
-  await clickCommand(page, 'wait');
+  await clickCommand(page, 'rest');
   await clickCommand(page, 'save');
   await page.reload();
   await page.getByRole('button', { name: 'Resume Saved' }).click();
@@ -300,10 +300,13 @@ test('resumes between levels and carries depleted resources into level two', asy
   await expect(page.locator('[data-role="outcome-title"]')).toHaveText(
     'The Way Below Opens'
   );
+  await expect(page.locator('[data-role="outcome-body"]')).toContainText('Words are carved above the stair down.');
+  await expect(page.locator('[data-role="outcome-verse"]')).toContainText('In the western dark a relic lies,');
   await page.getByRole('button', { name: 'Descend To Level 2' }).click();
   await expect(page.locator('[data-role="adventure-progress-stage"]')).toHaveText(
     'Level 2 of 3'
   );
+  await expect(page.locator('[data-role="adventure-progress-verse"]')).toContainText('Or leave it be and live to tell.');
 
   const state = JSON.parse(await page.evaluate(() => window.render_game_to_text?.() ?? '{}')) as {
     hero: { light: number; strength: number };
@@ -506,6 +509,20 @@ test('can win immediately on the idol fixture', async ({ page }) => {
   await expect(page.locator('[data-role="outcome-panel"]')).toBeVisible();
   await expect(page.locator('[data-role="outcome-title"]')).toContainText('Quest Complete');
   await expect(page.locator('[data-role="outcome-body"]')).toContainText('Score');
+});
+
+test('blesses a cleric who recovers the Idol', async ({ page }) => {
+  await resetPage(page);
+
+  await page.locator('[data-role="hero-select"]').selectOption('cleric_starter');
+  await chooseSingleLevel(page, 'idol_finish_level');
+  await page.getByRole('button', { name: 'Start Run' }).click();
+  await page.keyboard.press('G');
+
+  await expect(page.locator('[data-role="latest-event"]')).toContainText(
+    'A VOICE ON HIGH: WELL DONE, MY FAITHFUL ONE'
+  );
+  await expect(page.locator('[data-role="outcome-body"]')).toContainText('Few clerics come so far.');
 });
 
 test('shows exit gating feedback in the polished play shell', async ({ page }) => {

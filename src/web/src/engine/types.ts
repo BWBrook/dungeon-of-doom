@@ -28,7 +28,8 @@ export type BaseTileKind =
   | 'entrance'
   | 'exit'
   | 'trap'
-  | 'safe';
+  | 'safe'
+  | 'relic';
 
 export interface Point {
   x: number;
@@ -110,7 +111,8 @@ export type Action =
   | { type: 'useRestorative' }
   | { type: 'reveal' }
   | { type: 'castSpell'; slot: SpellSlot }
-  | { type: 'wait' };
+  | { type: 'wait' }
+  | { type: 'rest' };
 
 export interface GameInit {
   hero: HeroState;
@@ -137,6 +139,7 @@ export interface SnapshotCell {
     id: string;
     hp: number;
     active: boolean;
+    legacyTileCode: number;
   } | null;
 }
 

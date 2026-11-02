@@ -7,7 +7,7 @@ import {
 } from '../adventure/model';
 import type { AdventureDefinition, SerializedAdventure } from '../adventure/model';
 import { lostIdolAdventure } from '../content/adventures';
-import { createHeroStatus } from '../engine/catalog';
+import { LEGACY_CODES, createHeroStatus } from '../engine/catalog';
 import { warriorStarter } from '../engine/fixtures';
 import { defineLevelFromRows } from '../engine/levelBuilder';
 import { parsePlaySession } from '../persist/save';
@@ -139,6 +139,31 @@ describe('adventure progression', () => {
     expect(parsePlaySession(JSON.stringify(adventure.serialize()))).toBeNull();
   });
 
+  it('carves the level-two verse above the stair down, over a relic its warden guards', () => {
+    const verse = lostIdolAdventure.stages[1]!.verse;
+    const galleries = lostIdolAdventure.stages[1]!.level;
+    const adventure = new Adventure({ hero: warriorStarter, definition: lostIdolAdventure, seed: 5 });
+
+    expect(verse?.split('\n')).toHaveLength(4);
+    expect(galleries.cells[13 * 15 + 1]?.kind).toBe('relic');
+    expect(galleries.monsterSpawns).toContainEqual(
+      expect.objectContaining({ position: { x: 2, y: 13 }, legacyTileCode: LEGACY_CODES.warden })
+    );
+    expect(adventure.snapshot().stageVerse).toBeNull();
+
+    const resumed = Adventure.fromSerialized(
+      escapedAdventureSave(adventure, { stats: { ...warriorStarter.stats, experience: 2 } }),
+      lostIdolAdventure
+    );
+
+    resumed.step({ type: 'wait' });
+    expect(resumed.snapshot().status).toBe('betweenLevels');
+    expect(resumed.snapshot().nextStageVerse).toBe(verse);
+    resumed.continueToNextLevel();
+    expect(resumed.snapshot().stageVerse).toBe(verse);
+    expect(resumed.snapshot().nextStageVerse).toBeNull();
+  });
+
   it('progresses through real exits and completes only when the Idol is taken', () => {
     const definition = createCompactAdventure();
     let adventure = new Adventure({ hero: warriorStarter, definition, seed: 33 });
@@ -163,7 +188,7 @@ describe('adventure progression', () => {
     expect(adventure.snapshot().completedStages).toHaveLength(3);
   });
 
-  it('treats death and final-level escape as terminal adventure outcomes', () => {
+  it('ends on death, and holds the hero in the final level until the Idol is taken', () => {
     const definition = createCompactAdventure();
     const dying = new Adventure({ hero: warriorStarter, definition, seed: 44 });
     const dyingSave = dying.serialize();
@@ -194,6 +219,8 @@ describe('adventure progression', () => {
     escaping = Adventure.fromSerialized(finalSave, definition);
     escaping.step({ type: 'moveForward' });
 
-    expect(escaping.snapshot().status).toBe('abandoned');
+    expect(escaping.snapshot().status).toBe('playing');
+    expect(escaping.snapshot().currentRun.hero.position).toEqual({ x: 12, y: 1 });
+    expect(escaping.snapshot().currentRun.messages.at(-1)).toBe('YOU NEED THE IDOL');
   });
 });

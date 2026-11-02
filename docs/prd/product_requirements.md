@@ -299,6 +299,68 @@ Acceptance:
 - every class wins at least 70% of careful-bot runs, none is stuck, and
   levels two and three each kill someone
 
+### M13: Fog-Limited Harness
+
+Deliverables:
+
+- a fog bot that sees only the engine `Snapshot` the play screen draws,
+  with frontier exploration and a rationed light policy
+- `--vision omniscient,fog`, bracketing a real player between the two bots
+- bumped walls revealed on screen, restoring BASIC line 210
+- invariant tests: level one survivable without the map, no stranded fog bot
+
+Acceptance:
+
+- balance claims say whether they hold with the map, without it, or both
+
+### M14: Resting And The Idol Vault
+
+Deliverables:
+
+- a bounded Rest command, with trap release tied to being rested
+- a final exit that holds the hero until the Idol is taken
+- attacks limited to the reach monsters have
+- a gentler Idol Vault: a vase where the entrance monster stood, and two
+  fewer monsters between entrance and vault
+
+Acceptance:
+
+- a careful first-time player of every class has a real chance of winning,
+  level one never kills a careful player, and no run can end unwon by walking
+  onto an unseen exit
+
+### M15: Sanctuary And The Cleric's Blessing
+
+Deliverables:
+
+- no attacking from a safe square, in the engine, the command panel, and the
+  Lore
+- a blessing from their god for a Cleric who takes the Idol, in the event
+  line and the outcome panel, deliberately left out of the Lore
+
+Acceptance:
+
+- balance reports unchanged; the Cleric remains the hardest class by design
+
+### M16: The Warden's Relic
+
+Deliverables:
+
+- the first expansion content, additive so that ignoring it leaves the archival
+  game: a relic on level two that spares its bearer one killing blow, a warden
+  monster tier guarding it, and a verse telling of both, shown between levels
+  and on the progress panel while level two is played
+- Get lights the square ahead, restoring BASIC line 1500
+- harness players who heed the verse or seek the relic (`--relic heed,seek`),
+  and fog explorers whose route varies with the seed
+
+Acceptance:
+
+- a heeding player never wakes the warden; seeking is a gamble the strong
+  classes tend to win and the frail classes tend to lose
+- level one rarely kills a careful player without the map: at most one of the
+  forty warm-up band runs
+
 ## Success Criteria
 
 - The rules are understandable and stable enough that implementation decisions

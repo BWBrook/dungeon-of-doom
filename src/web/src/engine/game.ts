@@ -7,6 +7,8 @@ import {
   LEGACY_CODES,
   MESSAGE_LIMIT,
   MESSAGE_TEXT,
+  REST_CEILING,
+  RELIC_SLOT,
   clonePoint,
   computeSpellChargesFromInventory,
   isLegacyMonsterCode,
@@ -127,6 +129,16 @@ export class Game {
       return result;
     }
 
+    if (action.type === 'rest') {
+      this.rest(result);
+
+      if (this.runStatus !== 'playing') {
+        result.runStatusChanged = true;
+      }
+
+      return result;
+    }
+
     const previousPosition = clonePoint(this.hero.position);
 
     switch (action.type) {
@@ -165,14 +177,7 @@ export class Game {
       result.heroChanged = true;
     }
 
-    if (this.runStatus === 'playing' && this.hero.stats.strength < this.hero.baseStats.strength) {
-      this.hero.stats.strength = Math.min(
-        this.hero.baseStats.strength,
-        this.hero.stats.strength + this.hero.stats.vitality / 1100
-      );
-      result.heroChanged = true;
-    }
-
+    this.recoverStrength(result);
     this.revealPoint(this.hero.position, result);
     this.refreshActiveMonster();
 
@@ -185,7 +190,7 @@ export class Game {
     }
 
     if (this.runStatus === 'playing' && this.hero.stats.strength < 1) {
-      this.markDead(result);
+      this.fallOrBeSaved(result);
     }
 
     if (this.runStatus !== 'playing') {
@@ -222,7 +227,8 @@ export class Game {
               ? {
                   id: monster.id,
                   hp: monster.hp,
-                  active: monster.id === this.activeMonsterId
+                  active: monster.id === this.activeMonsterId,
+                  legacyTileCode: monster.legacyTileCode
                 }
               : null
         });
@@ -286,7 +292,7 @@ export class Game {
   private handleMoveForward(result: StepResult) {
     if (this.hero.status.trapped) {
       const released =
-        this.hero.stats.strength > this.hero.baseStats.strength * 0.8 &&
+        this.hero.stats.strength >= this.hero.baseStats.strength * REST_CEILING &&
         this.rng.int(1, 8) < this.hero.stats.luck;
 
       if (released) {
@@ -317,6 +323,7 @@ export class Game {
     const targetCell = this.getCell(target);
 
     if (targetCell.kind === 'wall') {
+      this.revealPoint(target, result);
       this.hero.stats.strength -= 0.03;
       this.pushMessage(result, 'THOU STRIKEST A WALL');
       this.pushSound(result, 'bump');
@@ -340,6 +347,16 @@ export class Game {
 
     if (!monster) {
       this.pushMessage(result, MESSAGE_TEXT.noMonster);
+      return;
+    }
+
+    if (this.getCell(this.hero.position).kind === 'safe') {
+      this.pushMessage(result, MESSAGE_TEXT.noFightInSanctuary);
+      return;
+    }
+
+    if (this.chebyshevDistance(monster.position, this.hero.position) > 1) {
+      this.pushMessage(result, MESSAGE_TEXT.outOfReach);
       return;
     }
 
@@ -373,6 +390,8 @@ export class Game {
     const target = this.frontPosition();
     const targetCell = this.getCell(target);
 
+    this.revealPoint(target, result);
+
     switch (targetCell.kind) {
       case 'vase':
         this.hero.inventorySlots[23] = (this.hero.inventorySlots[23] ?? 0) + 1;
@@ -386,6 +405,13 @@ export class Game {
         this.hero.treasure += 1;
         this.setCell(target, 'floor');
         this.pushMessage(result, 'TREASURE IS THINE');
+        this.pushSound(result, 'pickup');
+        result.heroChanged = true;
+        break;
+      case 'relic':
+        this.hero.inventorySlots[RELIC_SLOT] = 1;
+        this.setCell(target, 'floor');
+        this.pushMessage(result, MESSAGE_TEXT.relicTaken);
         this.pushSound(result, 'pickup');
         result.heroChanged = true;
         break;
@@ -641,12 +667,64 @@ export class Game {
     }
 
     if (this.hero.stats.strength < 1 || this.hero.stats.vitality < 1) {
-      this.markDead(result);
+      this.fallOrBeSaved(result);
     }
+  }
+
+  private recoverStrength(result: StepResult) {
+    if (this.runStatus === 'playing' && this.hero.stats.strength < this.hero.baseStats.strength) {
+      this.hero.stats.strength = Math.min(
+        this.hero.baseStats.strength,
+        this.hero.stats.strength + this.hero.stats.vitality / 1100
+      );
+      result.heroChanged = true;
+    }
+  }
+
+  private rest(result: StepResult) {
+    const ceiling = this.hero.baseStats.strength * REST_CEILING;
+
+    do {
+      this.recoverStrength(result);
+      this.revealPoint(this.hero.position, result);
+      this.refreshActiveMonster();
+      this.handleMonsterTurn(result);
+
+      if (this.runStatus === 'playing' && this.hero.stats.strength < 1) {
+        this.fallOrBeSaved(result);
+      }
+
+      this.turnCount += 1;
+    } while (
+      this.runStatus === 'playing' &&
+      this.hero.stats.strength < ceiling &&
+      !this.restDisturbed()
+    );
+
+    if (this.runStatus === 'playing') {
+      this.pushMessage(result, this.restDisturbed() ? MESSAGE_TEXT.restDisturbed : MESSAGE_TEXT.rested);
+    }
+  }
+
+  private restDisturbed(): boolean {
+    const monster = this.getActiveMonster();
+
+    return (
+      monster !== null &&
+      this.getCell(this.hero.position).kind !== 'safe' &&
+      this.chebyshevDistance(monster.position, this.hero.position) <= 1
+    );
   }
 
   private resolveExit(previousPosition: Point, result: StepResult) {
     if (this.getCell(this.hero.position).kind !== 'exit') {
+      return;
+    }
+
+    if (this.level.cells.some((cell) => cell.kind === 'idol')) {
+      this.hero.position = previousPosition;
+      this.pushMessage(result, MESSAGE_TEXT.needIdol);
+      result.heroChanged = true;
       return;
     }
 
@@ -668,7 +746,26 @@ export class Game {
     this.hero.status.won = true;
     this.score = this.computeScore();
     this.pushMessage(result, MESSAGE_TEXT.questOver);
+
+    if (this.hero.classId === 'cleric') {
+      this.pushMessage(result, MESSAGE_TEXT.clericBlessing);
+    }
+
     this.pushSound(result, 'win');
+  }
+
+  private fallOrBeSaved(result: StepResult) {
+    if ((this.hero.inventorySlots[RELIC_SLOT] ?? 0) > 0) {
+      this.hero.inventorySlots[RELIC_SLOT] = 0;
+      this.hero.stats.strength = this.hero.baseStats.strength;
+      this.hero.stats.vitality = this.hero.baseStats.vitality;
+      this.pushMessage(result, MESSAGE_TEXT.relicSaves);
+      this.pushSound(result, 'spell');
+      result.heroChanged = true;
+      return;
+    }
+
+    this.markDead(result);
   }
 
   private markDead(result: StepResult) {

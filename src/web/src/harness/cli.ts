@@ -2,10 +2,10 @@ import { writeFileSync } from 'node:fs';
 
 import { adventureById, lostIdolAdventure } from '../content/adventures';
 import { ARCHETYPES, buildArchetypeHero } from './heroes';
-import { POLICY_STYLES } from './policy';
-import type { PolicyStyle } from './policy';
-import { formatSummaryTable, simulateAdventure, summarizeRuns } from './simulate';
-import type { RunRecord } from './simulate';
+import { POLICY_STYLES, RELIC_INTENTS } from './policy';
+import type { PolicyStyle, RelicIntent } from './policy';
+import { VISIONS, formatSummaryTable, simulateAdventure, summarizeRuns } from './simulate';
+import type { RunRecord, Vision } from './simulate';
 
 interface CliOptions {
   seeds: number;
@@ -14,6 +14,8 @@ interface CliOptions {
   out: string | null;
   classes: string[] | null;
   styles: PolicyStyle[];
+  visions: Vision[];
+  relicIntents: RelicIntent[];
   maxTurnsPerStage: number;
 }
 
@@ -25,6 +27,8 @@ function parseArgs(argv: string[]): CliOptions {
     out: null,
     classes: null,
     styles: [...POLICY_STYLES],
+    visions: [...VISIONS],
+    relicIntents: ['heed'],
     maxTurnsPerStage: 600
   };
 
@@ -59,6 +63,18 @@ function parseArgs(argv: string[]): CliOptions {
           .filter((entry): entry is PolicyStyle => POLICY_STYLES.includes(entry as PolicyStyle));
         index += 1;
         break;
+      case '--vision':
+        options.visions = (value ?? '')
+          .split(',')
+          .filter((entry): entry is Vision => VISIONS.includes(entry as Vision));
+        index += 1;
+        break;
+      case '--relic':
+        options.relicIntents = (value ?? '')
+          .split(',')
+          .filter((entry): entry is RelicIntent => RELIC_INTENTS.includes(entry as RelicIntent));
+        index += 1;
+        break;
       case '--max-turns':
         options.maxTurnsPerStage = Number(value);
         index += 1;
@@ -88,14 +104,20 @@ function main() {
   for (const archetype of archetypes) {
     const hero = buildArchetypeHero(archetype);
 
-    for (const style of options.styles) {
-      for (let offset = 0; offset < options.seeds; offset += 1) {
-        records.push(
-          simulateAdventure(hero, definition, options.firstSeed + offset, {
-            maxTurnsPerStage: options.maxTurnsPerStage,
-            style
-          })
-        );
+    for (const vision of options.visions) {
+      for (const relicIntent of options.relicIntents) {
+        for (const style of options.styles) {
+          for (let offset = 0; offset < options.seeds; offset += 1) {
+            records.push(
+              simulateAdventure(hero, definition, options.firstSeed + offset, {
+                maxTurnsPerStage: options.maxTurnsPerStage,
+                style,
+                vision,
+                relicIntent
+              })
+            );
+          }
+        }
       }
     }
   }
@@ -107,7 +129,7 @@ function main() {
     '',
     `Generated ${new Date().toISOString().slice(0, 10)} with seeds ${options.firstSeed}..${options.firstSeed + options.seeds - 1}, ${options.maxTurnsPerStage} turn cap per level, ${elapsed}s.`,
     '',
-    'All bots know the map, collect vases first, take chests, and wake and fight monsters until the exit opens. Careful drinks below half strength and tops up before fights; reckless drinks only when the next hit would be fatal; completionist plays carefully but clears the final level before taking the Idol. Death % is per level entered.',
+    'Omniscient bots read the whole level; fog bots see only what the play screen shows, explore by walking on into the dark along a route that varies with the seed, and ration reveals across the levels ahead. Careful rests below half strength and before deliberate fights, and drinks in a fight below half strength; reckless rests below a third and drinks only when the next hit would be fatal; neither drinks outside a fight while it can rest. Completionist fights every known monster on the final level before taking the Idol. A heeding bot leaves a verse\'s relic alone; a seeking bot wakes its warden and takes it. Death % is per level entered; Light and Bumps are per run; Relic taken and Saved are % of runs.',
     '',
     formatSummaryTable(summaries, definition.stages.length),
     '',

@@ -16,7 +16,7 @@ import type {
 import { Adventure } from '../adventure/model';
 import type { AdventureSnapshot } from '../adventure/model';
 import { adventureCatalog, lostIdolAdventure } from '../content/adventures';
-import { SPELL_NAMES } from '../engine/catalog';
+import { RELIC_SLOT, SPELL_NAMES } from '../engine/catalog';
 import {
   EDITOR_TOOLS,
   createDefaultEditorDraft,
@@ -85,7 +85,7 @@ import {
   stepPlaySession
 } from '../play/session';
 import type { ActivePlaySession } from '../play/session';
-import { renderAdventureOutcome, renderAdventureProgress } from './adventureView';
+import { CLERIC_BLESSING, renderAdventureOutcome, renderAdventureProgress } from './adventureView';
 import { renderQuestView } from './questView';
 import type { QuestViewRefs } from './questView';
 import { AudioEngine } from './audio';
@@ -142,7 +142,7 @@ const PLAY_COMMANDS: Array<{ id: CommandId; action: Action | null }> = [
   { id: 'restore', action: { type: 'useRestorative' } },
   { id: 'reveal', action: { type: 'reveal' } },
   { id: 'conjure', action: null },
-  { id: 'wait', action: { type: 'wait' } },
+  { id: 'rest', action: { type: 'rest' } },
   { id: 'save', action: null }
 ];
 
@@ -213,6 +213,12 @@ export function mountApp(root: HTMLDivElement) {
   const outcomeSubline = requireElement(root, '[data-role="outcome-subline"]', HTMLParagraphElement);
   const outcomeTitle = requireElement(root, '[data-role="outcome-title"]', HTMLHeadingElement);
   const outcomeBody = requireElement(root, '[data-role="outcome-body"]', HTMLParagraphElement);
+  const outcomeVerse = requireElement(root, '[data-role="outcome-verse"]', HTMLParagraphElement);
+  const adventureProgressVerse = requireElement(
+    root,
+    '[data-role="adventure-progress-verse"]',
+    HTMLParagraphElement
+  );
   const outcomeContinueButton = requireElement(
     root,
     '[data-role="outcome-continue-button"]',
@@ -375,6 +381,7 @@ export function mountApp(root: HTMLDivElement) {
     panel: adventureProgress,
     title: adventureProgressTitle,
     detail: adventureProgressDetail,
+    verse: adventureProgressVerse,
     stage: adventureProgressStage,
     markers: adventureProgressMarkers
   };
@@ -383,6 +390,7 @@ export function mountApp(root: HTMLDivElement) {
     subline: outcomeSubline,
     title: outcomeTitle,
     body: outcomeBody,
+    verse: outcomeVerse,
     continueButton: outcomeContinueButton
   };
 
@@ -646,7 +654,7 @@ export function mountApp(root: HTMLDivElement) {
 
     if (presentation.outcome === 'won') {
       outcomeTitle.textContent = 'Quest Complete';
-      outcomeBody.textContent = `Score ${snapshot.score ?? '--'} with ${snapshot.hero.treasure} treasure and ${snapshot.hero.gold} gold.`;
+      outcomeBody.textContent = `Score ${snapshot.score ?? '--'} with ${snapshot.hero.treasure} treasure and ${snapshot.hero.gold} gold.${snapshot.hero.classId === 'cleric' ? ` ${CLERIC_BLESSING}` : ''}`;
       return;
     }
 
@@ -797,7 +805,12 @@ export function mountApp(root: HTMLDivElement) {
       const hero = playSession ? currentSerializedRun(playSession).hero : resolveSelectedHero();
 
       heroPayload.value = formatHeroString(hero);
-      setLegacyStatus(`Exported hero: ${hero.displayLabel}`, 'success');
+      setLegacyStatus(
+        (hero.inventorySlots[RELIC_SLOT] ?? 0) > 0
+          ? `Exported hero: ${hero.displayLabel}. The relic has no legacy form and was left out.`
+          : `Exported hero: ${hero.displayLabel}`,
+        'success'
+      );
       pushAppMessage('Exported legacy hero.');
       renderApp();
     } catch (error) {
@@ -814,7 +827,12 @@ export function mountApp(root: HTMLDivElement) {
       const level = playSession ? currentSerializedRun(playSession).level : resolveSelectedLevel();
 
       levelPayload.value = formatLevelString(level);
-      setLegacyStatus(`Exported level ${level.id}.`, 'success');
+      setLegacyStatus(
+        level.cells.some((cell) => cell.kind === 'relic')
+          ? `Exported level ${level.id}. The relic has no legacy form and was written as floor.`
+          : `Exported level ${level.id}.`,
+        'success'
+      );
       pushAppMessage('Exported legacy level.');
       renderApp();
     } catch (error) {
@@ -1997,7 +2015,7 @@ function mapKeyToAction(key: string): Action | null {
     case '6':
       return { type: 'castSpell', slot: Number(key) as 1 | 2 | 3 | 4 | 5 | 6 };
     case '.':
-      return { type: 'wait' };
+      return { type: 'rest' };
     default:
       return null;
   }

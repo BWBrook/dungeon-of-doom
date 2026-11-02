@@ -37,8 +37,8 @@ const blackGalleries = defineLevelFromRows({
     '#......T......#',
     '#..3.....2....#',
     '#......C......#',
-    '#...V.........#',
-    '#............X#',
+    '###.V.........#',
+    '#RW..........X#',
     '###############'
   ]
 });
@@ -48,15 +48,15 @@ const idolVault = defineLevelFromRows({
   rows: [
     '###############',
     '#E....#.......#',
-    '#..2..#..T....#',
+    '#..V..#..T....#',
     '#.....#.......#',
     '#.#####.#####.#',
-    '#..1.....2....#',
+    '#..1..........#',
     '#.....V.......#',
     '#..###.S.###..#',
     '#.............#',
     '#..###...###..#',
-    '#....2.....1..#',
+    '#..........1..#',
     '#......C..###3#',
     '#.........#I..#',
     '#.........#..X#',
@@ -70,7 +70,17 @@ export const lostIdolAdventure: AdventureDefinition = {
   description: 'Descend beneath ruined Crekkan and recover the Idol from the deepest vault.',
   stages: [
     { id: 'shattered-gate', title: 'The Shattered Gate', level: shatteredGate },
-    { id: 'black-galleries', title: 'The Black Galleries', level: blackGalleries },
+    {
+      id: 'black-galleries',
+      title: 'The Black Galleries',
+      level: blackGalleries,
+      verse: [
+        'In the western dark a relic lies,',
+        'Its warden sleeps with open eyes.',
+        'Take heart, and it may serve thee well,',
+        'Or leave it be and live to tell.'
+      ].join('\n')
+    },
     { id: 'idol-vault', title: 'The Idol Vault', level: idolVault }
   ]
 };

@@ -1,3 +1,4 @@
+import { LEGACY_CODES } from '../engine/catalog';
 import type { Facing, Snapshot, SnapshotCell } from '../engine/types';
 import {
   CELL_SIZE,
@@ -132,7 +133,7 @@ export class DungeonRenderer {
     this.context.fillStyle = cell.visible ? visual.ink : LAMP_TERMINAL_THEME.glyphDim;
 
     if (cell.monster) {
-      this.drawMonster(left, top, cell.monster.hp, cell.monster.active, cell.visible);
+      this.drawMonster(left, top, cell.monster, cell.visible);
       if (cell.monster.active) {
         this.drawActiveMonsterOutline(left, top, effectIntensity);
       }
@@ -149,8 +150,15 @@ export class DungeonRenderer {
     }
   }
 
-  private drawMonster(left: number, top: number, hp: number, active: boolean, visible: boolean) {
-    const monsterVisual = active ? MONSTER_VISUALS.active : hp >= 14 ? MONSTER_VISUALS.elder : MONSTER_VISUALS.dormant;
+  private drawMonster(left: number, top: number, monster: NonNullable<SnapshotCell['monster']>, visible: boolean) {
+    const monsterVisual =
+      monster.legacyTileCode >= LEGACY_CODES.warden
+        ? MONSTER_VISUALS.warden
+        : monster.active
+          ? MONSTER_VISUALS.active
+          : monster.hp >= 14
+            ? MONSTER_VISUALS.elder
+            : MONSTER_VISUALS.dormant;
 
     this.context.fillStyle = visible ? monsterVisual.fill : '#4a2a23';
     this.context.fillRect(left + 6, top + 6, CELL_SIZE - 12, CELL_SIZE - 12);

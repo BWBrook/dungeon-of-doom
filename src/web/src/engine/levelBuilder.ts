@@ -89,6 +89,10 @@ function cellFromGlyph(glyph: string): {
       return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.monster2 };
     case '3':
       return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.monster3 };
+    case 'W':
+      return { kind: 'floor', monsterLegacyCode: LEGACY_CODES.warden };
+    case 'R':
+      return { kind: 'relic', monsterLegacyCode: null };
     default:
       return { kind: 'floor', monsterLegacyCode: null };
   }

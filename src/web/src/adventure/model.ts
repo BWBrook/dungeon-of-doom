@@ -18,6 +18,7 @@ export interface AdventureStage {
   id: string;
   title: string;
   level: LevelDefinition;
+  verse?: string;
 }
 
 export interface AdventureDefinition {
@@ -27,7 +28,7 @@ export interface AdventureDefinition {
   stages: AdventureStage[];
 }
 
-export type AdventureStatus = 'playing' | 'betweenLevels' | 'won' | 'dead' | 'abandoned';
+export type AdventureStatus = 'playing' | 'betweenLevels' | 'won' | 'dead';
 
 export interface CompletedStage {
   stageIndex: number;
@@ -45,6 +46,8 @@ export interface AdventureSnapshot {
   stageIndex: number;
   stageCount: number;
   stageTitle: string;
+  stageVerse: string | null;
+  nextStageVerse: string | null;
   status: AdventureStatus;
   completedStages: CompletedStage[];
   cumulativeTurns: number;
@@ -151,12 +154,8 @@ export class Adventure {
     } else if (runStatus === 'dead') {
       this.status = 'dead';
     } else if (runStatus === 'escaped') {
-      if (this.stageIndex === this.definition.stages.length - 1) {
-        this.status = 'abandoned';
-      } else {
-        this.recordCompletedStage();
-        this.status = 'betweenLevels';
-      }
+      this.recordCompletedStage();
+      this.status = 'betweenLevels';
     }
 
     return result;
@@ -201,6 +200,8 @@ export class Adventure {
       stageIndex: this.stageIndex,
       stageCount: this.definition.stages.length,
       stageTitle: this.definition.stages[this.stageIndex]!.title,
+      stageVerse: this.definition.stages[this.stageIndex]!.verse ?? null,
+      nextStageVerse: this.definition.stages[this.stageIndex + 1]?.verse ?? null,
       status: this.status,
       completedStages: structuredClone(this.completedStages),
       cumulativeTurns: priorTurns + currentRun.turnCount,

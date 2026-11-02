@@ -43,8 +43,8 @@ recorded as complete in `progress.md` and included in this closeout:
 - Saves preserve single runs or whole adventure sessions, including the
   between-level state. Progress and terminal outcomes are visible in Play.
 - Single Dungeon remains available for fixtures, imports, Editor, Creator,
-  and Archive launches. Final escape without the Idol abandons the adventure;
-  taking the Idol wins it.
+  and Archive launches. The final exit is barred while the Idol remains (M14);
+  taking the Idol wins.
 
 No known M8 blocker remains. Automated checks were rerun for this closeout;
 organic gameplay observations below come from the earlier M8 acceptance.
@@ -110,8 +110,17 @@ installed dependencies are retained for the next agent.
 
 ## Direction and working style
 
-The current endpoint is a coherent playable revival through M12 (Balance
-Pass, September 2026; see `progress.md` and `docs/balance/`). Superzap now
+The current endpoint is a coherent playable revival through M16 (The Warden's
+Relic, September 2026; see `progress.md` and `docs/balance/`).
+Resting is back, bounded at two-thirds strength; the final exit needs the
+Idol; attacks reach one square; no blow may be struck from a safe square (M15).
+The Cleric is the hardest class by Barry's choice and gets a secret blessing on
+taking the Idol. M16 added the first expansion content, additive and
+skippable: a verse on level two tells of a relic that saves its bearer once,
+guarded by a warden far stronger than any archival monster. `pnpm balance
+--relic heed,seek` compares players who leave it and players who take it.
+Fog-bot figures before M16 carry single-route luck; use the 26 September
+report. M12 notes: Superzap now
 costs aura and can fizzle, monsters can miss, the Idol sits behind a guarded
 vault, and the careful-bot bands are pinned by a test. Level one is a
 warm-up by Barry's decision; the shield slot is inert and that is open. Barry's stated direction:

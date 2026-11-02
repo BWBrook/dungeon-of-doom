@@ -27,7 +27,8 @@ const TILE_KINDS: BaseTileKind[] = [
   'entrance',
   'exit',
   'trap',
-  'safe'
+  'safe',
+  'relic'
 ];
 
 export function loadLevelLibrary(): LibraryLevel[] {
@@ -140,7 +141,8 @@ export function parseAdventureDefinition(value: unknown): AdventureDefinition {
       return {
         id: stage.id,
         title: stage.title,
-        level: parseLevelDefinition(stage.level, `stage ${index + 1}`)
+        level: parseLevelDefinition(stage.level, `stage ${index + 1}`),
+        ...(typeof stage.verse === 'string' && stage.verse.length > 0 ? { verse: stage.verse } : {})
       };
     })
   };

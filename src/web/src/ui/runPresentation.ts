@@ -1,4 +1,4 @@
-import { CLASS_LABELS } from '../engine/catalog';
+import { CLASS_LABELS, RELIC_SLOT } from '../engine/catalog';
 import type { LevelDefinition, Snapshot } from '../engine/types';
 
 export type CommandId =
@@ -10,7 +10,7 @@ export type CommandId =
   | 'restore'
   | 'reveal'
   | 'conjure'
-  | 'wait'
+  | 'rest'
   | 'save';
 
 export type RunOutcome = 'won' | 'escaped' | 'dead' | null;
@@ -52,7 +52,7 @@ const COMMANDS: Array<Omit<CommandState, 'enabled' | 'hint'>> = [
   { id: 'restore', label: 'Restore', hotkey: 'P' },
   { id: 'reveal', label: 'Reveal', hotkey: 'R' },
   { id: 'conjure', label: 'Conjure', hotkey: 'C' },
-  { id: 'wait', label: 'Wait', hotkey: '.' },
+  { id: 'rest', label: 'Rest', hotkey: '.' },
   { id: 'save', label: 'Save', hotkey: 'S' }
 ];
 
@@ -84,6 +84,16 @@ export function createRunPresentation(
   const hasRestorative = (hero.inventorySlots[23] ?? 0) > 0 || (hero.inventorySlots[24] ?? 0) > 0;
   const hasMagicSource = (hero.inventorySlots[17] ?? 0) > 0 || (hero.inventorySlots[18] ?? 0) > 0;
   const hasLight = hero.lightUses > 0;
+  const heroTile =
+    snapshot.levelView.cells[hero.position.y * snapshot.levelView.width + hero.position.x]?.tile ?? null;
+  const monsterReach: MonsterReach = !snapshot.activeMonster
+    ? 'none'
+    : Math.max(
+          Math.abs(snapshot.activeMonster.position.x - hero.position.x),
+          Math.abs(snapshot.activeMonster.position.y - hero.position.y)
+        ) <= 1
+      ? 'near'
+      : 'far';
   const turnMessages = options.turnMessages ?? [];
   const latestMessage =
     turnMessages.length > 0
@@ -105,6 +115,7 @@ export function createRunPresentation(
       { label: 'SALVE', value: String(hero.inventorySlots[23] ?? 0) },
       { label: 'POTION', value: String(hero.inventorySlots[24] ?? 0) },
       { label: 'MAGIC', value: magicLabel(hero.inventorySlots[17] ?? 0, hero.inventorySlots[18] ?? 0) },
+      ...((hero.inventorySlots[RELIC_SLOT] ?? 0) > 0 ? [{ label: 'RELIC', value: 'HELD' }] : []),
       { label: 'ACTIVE', value: snapshot.activeMonster ? `${Math.ceil(snapshot.activeMonster.hp)} HP` : 'NONE' },
       { label: 'SCORE', value: snapshot.score === null ? '--' : String(snapshot.score) }
     ],
@@ -114,7 +125,7 @@ export function createRunPresentation(
       hasRestorative,
       hasMagicSource,
       hasLight,
-      snapshot.activeMonster !== null
+      heroTile === 'safe' && monsterReach !== 'none' ? 'sanctuary' : monsterReach
     ),
     latestMessage,
     logRows: snapshot.messages.length > 0 ? snapshot.messages : [latestMessage],
@@ -128,7 +139,7 @@ function commandStates(
   hasRestorative: boolean,
   hasMagicSource: boolean,
   hasLight: boolean,
-  hasActiveMonster: boolean
+  monsterReach: MonsterReach
 ): CommandState[] {
   return COMMANDS.map((command) => {
     if (!canAct) {
@@ -141,7 +152,20 @@ function commandStates(
 
     switch (command.id) {
       case 'attack':
-        return { ...command, enabled: hasActiveMonster, hint: hasActiveMonster ? 'Strike the active monster.' : 'No active monster.' };
+        return {
+          ...command,
+          enabled: monsterReach === 'near',
+          hint:
+            monsterReach === 'near'
+              ? 'Strike the active monster.'
+              : monsterReach === 'sanctuary'
+                ? 'None may fight in sanctuary.'
+                : monsterReach === 'far'
+                  ? 'The monster is out of reach.'
+                  : 'No active monster.'
+        };
+      case 'rest':
+        return { ...command, enabled: true, hint: 'Rest until two-thirds strength returns or a monster comes near.' };
       case 'restore':
         return { ...command, enabled: hasRestorative, hint: hasRestorative ? 'Use salves or potions.' : 'No restoratives.' };
       case 'reveal':
@@ -153,6 +177,8 @@ function commandStates(
     }
   });
 }
+
+type MonsterReach = 'none' | 'far' | 'near' | 'sanctuary';
 
 function formatRunStatus(status: Snapshot['runStatus']): string {
   switch (status) {

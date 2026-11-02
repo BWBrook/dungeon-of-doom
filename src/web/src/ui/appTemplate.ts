@@ -55,6 +55,7 @@ export const APP_TEMPLATE = String.raw`
             <p class="run-kicker">Quest Progress</p>
             <h2 data-role="adventure-progress-title">The Lost Idol</h2>
             <p data-role="adventure-progress-detail"></p>
+            <p class="adventure-verse" data-role="adventure-progress-verse" hidden></p>
           </div>
           <div class="adventure-stage-readout">
             <strong data-role="adventure-progress-stage">Level 1 of 3</strong>
@@ -71,6 +72,7 @@ export const APP_TEMPLATE = String.raw`
                 <p class="run-kicker" data-role="outcome-subline">Run complete</p>
                 <h2 data-role="outcome-title">Outcome</h2>
                 <p data-role="outcome-body"></p>
+                <p class="adventure-verse" data-role="outcome-verse" hidden></p>
               </div>
               <div class="outcome-actions">
                 <button data-role="outcome-continue-button" type="button" hidden>Descend</button>
@@ -99,7 +101,7 @@ export const APP_TEMPLATE = String.raw`
             </section>
             <section class="panel">
               <h2>Controls</h2>
-              <p>B/N turn, M move, A attack, G get, P restore, R reveal, C conjure, 1-6 quick-cast, . wait, S save.</p>
+              <p>B/N turn, M move, A attack, G get, P restore, R reveal, C conjure, 1-6 quick-cast, . rest, S save.</p>
             </section>
             <section class="panel">
               <h2>Messages</h2>

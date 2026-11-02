@@ -89,7 +89,8 @@ export function questDefinitionFromDraft(draft: QuestDraft): AdventureDefinition
     stages: draft.stages.map((stage, index) => ({
       id: `${draft.id}-stage-${index + 1}`,
       title: stage.title.trim() || `Level ${index + 1}`,
-      level: { ...structuredClone(stage.level), id: index + 1 }
+      level: { ...structuredClone(stage.level), id: index + 1 },
+      ...(stage.verse ? { verse: stage.verse } : {})
     }))
   };
 }

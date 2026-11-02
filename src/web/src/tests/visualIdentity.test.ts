@@ -20,7 +20,8 @@ const BASE_TILE_KINDS: BaseTileKind[] = [
   'entrance',
   'exit',
   'trap',
-  'safe'
+  'safe',
+  'relic'
 ];
 
 const FACING_VALUES: Facing[] = ['N', 'E', 'S', 'W'];
